@@ -35,7 +35,7 @@ const elements = Object.fromEntries([
 
 const state = {
   track: demoTrack, lyrics: demoLyrics, analysis: demoAnalysis, activeIndex: -1, hoveredIndex: null,
-  mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-5-mini', apiKey: '' },
+  mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0,
 };
@@ -175,7 +175,9 @@ async function analyzeCurrentSong(automatic = false) {
   } catch (error) {
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
-    if (!automatic || !/API key/i.test(error.message)) showToast(error.message);
+    const message = String(error.message || 'Translation failed. Please try again.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
+    elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
+    if (!automatic || !/API key/i.test(message)) showToast(message, 6000);
   }
 }
 
@@ -248,7 +250,7 @@ function tick() {
 async function openSettings() {
   state.settings = await window.bol.loadSettings();
   elements.targetLanguageInput.value = state.settings.targetLanguage || 'Hindi';
-  elements.modelInput.value = state.settings.model || 'gpt-5-mini';
+  elements.modelInput.value = state.settings.model || 'gpt-4o-mini';
   elements.apiKeyInput.value = '';
   elements.apiKeyInput.placeholder = state.settings.apiKey ? 'Saved securely · enter to replace' : 'sk-…';
   elements.settingsDialog.showModal();
@@ -265,7 +267,7 @@ elements.settingsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const next = {
     targetLanguage: elements.targetLanguageInput.value.trim() || 'Hindi',
-    model: elements.modelInput.value.trim() || 'gpt-5-mini',
+    model: elements.modelInput.value.trim() || 'gpt-4o-mini',
     apiKey: elements.apiKeyInput.value.trim() || state.settings.apiKey,
   };
   await window.bol.saveSettings(next);

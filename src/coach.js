@@ -26,12 +26,13 @@ const analysisSchema = {
 function createCoach({ apiKey, model, targetLanguage }) {
   return {
     async analyze({ track, lines }) {
-      const compactLines = lines.slice(0, 160).map(({ index, text }) => ({ index, text }));
+      const plan = planAnalysis(lines);
+      const batches = await Promise.all(plan.uniqueChunks.map(async (compactLines) => {
       const response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: model || 'gpt-5-mini',
+          model: model || 'gpt-4o-mini',
           store: false,
           instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. First identify the actual language of the supplied lyrics; songs may be in a related but different language such as Punjabi or Urdu, and you must say so accurately rather than treating every song as the target language. Translate each supplied line into concise natural English. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. If the line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, give a genuinely common daily alternative in the original language with an English gloss. If it is already natural daily speech, dailyAlternative must be an empty string. Never invent certainty: use unclear when context is insufficient. Preserve every input index exactly once and do not quote unrelated lyrics.`,
           input: JSON.stringify({ track: { title: track.title, artist: track.artist }, lines: compactLines }),
@@ -43,6 +44,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
               schema: analysisSchema,
             },
           },
+          max_output_tokens: 6000,
         }),
         signal: AbortSignal.timeout(90000),
       });
@@ -51,8 +53,35 @@ function createCoach({ apiKey, model, targetLanguage }) {
       const outputText = extractOutputText(body);
       if (!outputText) throw new Error('The language coach returned no analysis.');
       return JSON.parse(outputText);
+      }));
+      const byCanonicalIndex = new Map(batches.flatMap((batch) => batch.lines).map((line) => [line.index, line]));
+      return {
+        language: batches[0]?.language || targetLanguage || 'Unknown',
+        summary: batches.map((batch) => batch.summary).filter(Boolean).join(' '),
+        lines: plan.originals.map(({ index, canonicalIndex }) => {
+          const result = byCanonicalIndex.get(canonicalIndex);
+          if (!result) throw new Error(`The language coach skipped lyric line ${index + 1}.`);
+          return { ...result, index };
+        }),
+      };
     },
   };
+}
+
+function planAnalysis(lines, chunkSize = 12) {
+  const textToCanonical = new Map();
+  const unique = [];
+  const originals = lines.slice(0, 160).map(({ index, text }) => {
+    const normalized = String(text).trim();
+    if (!textToCanonical.has(normalized)) {
+      textToCanonical.set(normalized, index);
+      unique.push({ index, text: normalized });
+    }
+    return { index, canonicalIndex: textToCanonical.get(normalized) };
+  });
+  const uniqueChunks = [];
+  for (let index = 0; index < unique.length; index += chunkSize) uniqueChunks.push(unique.slice(index, index + chunkSize));
+  return { originals, uniqueChunks };
 }
 
 function extractOutputText(response) {
@@ -64,4 +93,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, extractOutputText };
+module.exports = { createCoach, analysisSchema, extractOutputText, planAnalysis };

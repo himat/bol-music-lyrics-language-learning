@@ -18,15 +18,15 @@ async function loadSettings() {
       stored.apiKey = safeStorage.decryptString(Buffer.from(stored.encryptedApiKey, 'base64'));
     }
     delete stored.encryptedApiKey;
-    return { model: 'gpt-5-mini', targetLanguage: 'Hindi', ...stored };
+    return { model: 'gpt-4o-mini', targetLanguage: 'Hindi', ...stored };
   } catch {
-    return { model: 'gpt-5-mini', targetLanguage: 'Hindi', apiKey: '' };
+    return { model: 'gpt-4o-mini', targetLanguage: 'Hindi', apiKey: '' };
   }
 }
 
 async function saveSettings(next) {
   const value = {
-    model: String(next.model || 'gpt-5-mini').trim(),
+    model: String(next.model || 'gpt-4o-mini').trim(),
     targetLanguage: String(next.targetLanguage || 'Hindi').trim(),
   };
   if (next.apiKey && safeStorage.isEncryptionAvailable()) {
