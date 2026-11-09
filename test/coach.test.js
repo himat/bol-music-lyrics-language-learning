@@ -37,5 +37,6 @@ test('requires a per-line language and target-language fit', () => {
   const lineSchema = analysisSchema.properties.lines.items;
   assert.ok(lineSchema.required.includes('language'));
   assert.ok(lineSchema.required.includes('targetLanguageFit'));
+  assert.ok(lineSchema.required.includes('wordGlosses'));
   assert.deepEqual(lineSchema.properties.targetLanguageFit.enum, ['target', 'mixed', 'other', 'unclear']);
 });

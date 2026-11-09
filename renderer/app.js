@@ -18,11 +18,11 @@ const demoLyrics = {
 const demoAnalysis = {
   language: 'Hindi and Punjabi', summary: 'Most lines are natural Hindi; the final line is Punjabi and is marked so you do not learn it as Hindi.',
   lines: [
-    { index: 0, translation: 'The weather is nice today.', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'A straightforward, everyday observation.', dailyAlternative: '' },
-    { index: 1, translation: 'Come on, let’s have tea.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'चलो is a very common way to suggest doing something together.', dailyAlternative: '' },
-    { index: 2, translation: 'How was your day?', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'Natural with friends, family, and colleagues.', dailyAlternative: '' },
-    { index: 3, translation: 'It was fine—just a bit long.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'बस softens the answer and can mean “just” or “well.”', dailyAlternative: '' },
-    { index: 4, translation: 'We’ll meet again tomorrow.', language: 'Punjabi', targetLanguageFit: 'other', register: 'common', explanation: 'This is natural Punjabi, not Hindi, so do not count it as a Hindi phrase.', dailyAlternative: '' },
+    { index: 0, translation: 'The weather is nice today.', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'A straightforward, everyday observation.', dailyAlternative: '', wordGlosses: [{ word: 'आज', meaning: 'today' }, { word: 'मौसम', meaning: 'weather' }, { word: 'अच्छा', meaning: 'nice / good' }, { word: 'है', meaning: 'is' }] },
+    { index: 1, translation: 'Come on, let’s have tea.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'चलो is a very common way to suggest doing something together.', dailyAlternative: '', wordGlosses: [{ word: 'चलो', meaning: 'come on / let’s' }, { word: 'चाय', meaning: 'tea' }, { word: 'पीते', meaning: 'drink' }, { word: 'हैं', meaning: 'we do / are' }] },
+    { index: 2, translation: 'How was your day?', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'Natural with friends, family, and colleagues.', dailyAlternative: '', wordGlosses: [{ word: 'तुम्हारा', meaning: 'your' }, { word: 'दिन', meaning: 'day' }, { word: 'कैसा', meaning: 'how / what kind' }, { word: 'था', meaning: 'was' }] },
+    { index: 3, translation: 'It was fine—just a bit long.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'बस softens the answer and can mean “just” or “well.”', dailyAlternative: '', wordGlosses: [{ word: 'बस', meaning: 'just / well' }, { word: 'ठीक', meaning: 'fine / okay' }, { word: 'था', meaning: 'was' }, { word: 'थोड़ा', meaning: 'a little' }, { word: 'लंबा', meaning: 'long' }] },
+    { index: 4, translation: 'We’ll meet again tomorrow.', language: 'Punjabi', targetLanguageFit: 'other', register: 'common', explanation: 'This is natural Punjabi, not Hindi, so do not count it as a Hindi phrase.', dailyAlternative: '', wordGlosses: [{ word: 'ਕੱਲ੍ਹ', meaning: 'tomorrow' }, { word: 'ਫਿਰ', meaning: 'again' }, { word: 'ਮਿਲਾਂਗੇ', meaning: 'we will meet' }] },
   ],
 };
 
@@ -37,8 +37,8 @@ const state = {
   track: demoTrack, lyrics: demoLyrics, analysis: demoAnalysis, activeIndex: -1, hoveredIndex: null,
   mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
-  loadToken: 0, demoPinnedUntil: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
-  isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null,
+  loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
+  isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
 };
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
@@ -145,13 +145,44 @@ function learningVerdict(analysis) {
   return { className: 'adapt', title: 'Don’t learn as is', detail };
 }
 
+function normalizedWord(value) {
+  return String(value || '').normalize('NFKC').replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').toLocaleLowerCase();
+}
+
+function appendGlossedWords(container, text, analysis) {
+  const meanings = new Map((analysis?.wordGlosses || []).map(({ word, meaning }) => [normalizedWord(word), meaning]));
+  const segments = new Intl.Segmenter(undefined, { granularity: 'word' }).segment(String(text));
+  for (const { segment, isWordLike } of segments) {
+    const meaning = isWordLike ? meanings.get(normalizedWord(segment)) : '';
+    if (!meaning) {
+      container.appendChild(document.createTextNode(segment));
+      continue;
+    }
+    const word = document.createElement('span');
+    word.className = 'lyric-word';
+    word.textContent = segment;
+    word.dataset.meaning = meaning;
+    word.setAttribute('aria-label', `${segment}: ${meaning}`);
+    container.appendChild(word);
+  }
+}
+
+function glossedWordsHTML(text, analysis) {
+  const holder = document.createElement('span');
+  appendGlossedWords(holder, text, analysis);
+  return holder.innerHTML;
+}
+
 function renderLyrics() {
   elements.emptyState.hidden = true;
   elements.lyricsScroll.hidden = false;
   elements.lyricsScroll.innerHTML = '';
   elements.syncStatus.hidden = false;
-  elements.syncStatus.textContent = state.lyrics.synced ? 'Synced lyrics' : 'Plain lyrics · no timing';
+  elements.syncStatus.textContent = state.track.demo
+    ? 'Demo timing'
+    : state.lyrics.synced ? 'Synced lyrics' : 'Plain lyrics · no timing';
   elements.syncStatus.classList.toggle('unsynced', !state.lyrics.synced);
+  elements.syncStatus.classList.toggle('demo', Boolean(state.track.demo));
   for (const line of state.lyrics.lines) {
     const analysis = analysisFor(line.index);
     const row = document.createElement('div');
@@ -161,7 +192,7 @@ function renderLyrics() {
     const original = document.createElement('div');
     original.className = 'lyric-original';
     const originalText = document.createElement('span');
-    originalText.textContent = line.text;
+    appendGlossedWords(originalText, line.text, analysis);
     original.appendChild(originalText);
     const label = languageLabel(analysis);
     if (label) {
@@ -199,7 +230,7 @@ function renderCurrentLineDock() {
   const translation = analysis?.translation
     ? escapeHTML(analysis.translation)
     : '<span class="translation-placeholder"></span>';
-  elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span class="dock-copy"><span>${escapeHTML(line.text)}</span>${languageTag}</span></span><span class="dock-translation">${translation}</span>`;
+  elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span class="dock-copy"><span>${glossedWordsHTML(line.text, analysis)}</span>${languageTag}</span></span><span class="dock-translation">${translation}</span>`;
   elements.currentLineDock.hidden = false;
 }
 
@@ -273,6 +304,7 @@ async function loadTrack(track) {
   state.track = track;
   state.positionBase = track.positionMs;
   state.positionObservedAt = track.observedAt || Date.now();
+  state.lyrics = { synced: false, lines: [] };
   state.analysis = null;
   state.isAnalyzing = false;
   stopAnalysisTimer();
@@ -340,10 +372,9 @@ async function analyzeCurrentSong(automatic = false) {
   }
 }
 
-function useDemo(pinForExploration = true) {
+function useDemo() {
   state.loadToken += 1;
-  state.demoPinnedUntil = pinForExploration ? Date.now() + 60000 : 0;
-  if (pinForExploration) state.lastRealTrackKey = '';
+  state.lastRealTrackKey = '';
   state.mode = 'demo';
   state.track = { ...demoTrack, positionMs: 0, observedAt: Date.now() };
   state.lyrics = demoLyrics;
@@ -363,14 +394,14 @@ function useDemo(pinForExploration = true) {
 }
 
 async function pollSpotify() {
+  if (state.spotifyPollInFlight) return;
+  state.spotifyPollInFlight = true;
   try {
     const spotify = await window.bol.spotifyState();
     if (!spotify.available) {
-      if (state.mode !== 'demo') setEmpty('Waiting for Spotify', spotify.reason);
       setSource(state.mode === 'demo' ? 'Demo · Spotify is not playing' : spotify.reason, false);
       return;
     }
-    if (state.mode === 'demo' && state.demoPinnedUntil > Date.now()) return;
     setSource(spotify.isPlaying ? 'Listening to Spotify' : 'Spotify paused', true);
     const key = trackKey(spotify);
     state.mode = 'spotify';
@@ -381,10 +412,12 @@ async function pollSpotify() {
     elements.playingBars.classList.toggle('paused', !spotify.isPlaying);
     if (key !== state.lastRealTrackKey) {
       state.lastRealTrackKey = key;
-      await loadTrack(spotify);
+      loadTrack(spotify);
     }
   } catch (error) {
     setSource('Spotify connection unavailable', false);
+  } finally {
+    state.spotifyPollInFlight = false;
   }
 }
 
@@ -444,8 +477,8 @@ async function openSettings() {
 }
 
 elements.settingsButton.addEventListener('click', openSettings);
-elements.demoButton.addEventListener('click', () => useDemo(true));
-elements.homeButton.addEventListener('click', () => useDemo(true));
+elements.demoButton.addEventListener('click', useDemo);
+elements.homeButton.addEventListener('click', useDemo);
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
 elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false));
@@ -490,7 +523,7 @@ elements.settingsForm.addEventListener('submit', async (event) => {
 async function init() {
   state.settings = await window.bol.loadSettings();
   elements.languageLabel.textContent = `Learning ${state.settings.targetLanguage || 'Hindi'}`;
-  useDemo(false);
+  useDemo();
   await pollSpotify();
   setInterval(pollSpotify, 2000);
   setInterval(tick, 200);

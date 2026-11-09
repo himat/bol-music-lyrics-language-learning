@@ -10,7 +10,7 @@ const analysisSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['index', 'translation', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative'],
+        required: ['index', 'translation', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative', 'wordGlosses'],
         properties: {
           index: { type: 'integer' },
           translation: { type: 'string' },
@@ -19,6 +19,15 @@ const analysisSchema = {
           register: { type: 'string', enum: ['common', 'casual', 'formal', 'poetic', 'uncommon', 'unclear'] },
           explanation: { type: 'string' },
           dailyAlternative: { type: 'string' },
+          wordGlosses: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['word', 'meaning'],
+              properties: { word: { type: 'string' }, meaning: { type: 'string' } },
+            },
+          },
         },
       },
     },
@@ -36,7 +45,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
         body: JSON.stringify({
           model: model || 'gpt-4o-mini',
           store: false,
-          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, give a genuinely common daily alternative in the original language with an English gloss. If it is already natural daily speech, dailyAlternative must be an empty string. Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
+          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. For every meaningful surface word, add one wordGlosses entry using that exact word without surrounding punctuation and a short contextual English meaning; omit pure punctuation, vocalizations, and repeated duplicate words. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, give a genuinely common daily alternative in the original language with an English gloss. If it is already natural daily speech, dailyAlternative must be an empty string. Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
           input: JSON.stringify({ track: { title: track.title, artist: track.artist }, lines: compactLines }),
           text: {
             format: {
