@@ -122,27 +122,28 @@ function normalizedWord(value) {
   return String(value || '').normalize('NFKC').replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').toLocaleLowerCase();
 }
 
-function appendGlossedWords(container, text, analysis) {
-  const meanings = new Map((analysis?.wordGlosses || []).map(({ word, meaning }) => [normalizedWord(word), meaning]));
+function appendGlossedWords(container, text, analysis, className = 'lyric-word') {
+  const glosses = new Map((analysis?.wordGlosses || []).map((gloss) => [normalizedWord(gloss.word), gloss]));
   const segments = new Intl.Segmenter(undefined, { granularity: 'word' }).segment(String(text));
   for (const { segment, isWordLike } of segments) {
-    const meaning = isWordLike ? meanings.get(normalizedWord(segment)) : '';
-    if (!meaning) {
+    const gloss = isWordLike ? glosses.get(normalizedWord(segment)) : null;
+    if (!gloss) {
       container.appendChild(document.createTextNode(segment));
       continue;
     }
     const word = document.createElement('span');
-    word.className = 'lyric-word';
+    word.className = className;
     word.textContent = segment;
-    word.dataset.meaning = meaning;
-    word.setAttribute('aria-label', `${segment}: ${meaning}`);
+    const romanization = gloss.romanization || segment;
+    word.dataset.gloss = `${romanization} · ${gloss.meaning}`;
+    word.setAttribute('aria-label', `${segment}: ${romanization}; ${gloss.meaning}`);
     container.appendChild(word);
   }
 }
 
-function glossedWordsHTML(text, analysis) {
+function glossedWordsHTML(text, analysis, className) {
   const holder = document.createElement('span');
-  appendGlossedWords(holder, text, analysis);
+  appendGlossedWords(holder, text, analysis, className);
   return holder.innerHTML;
 }
 
@@ -247,9 +248,7 @@ function selectCoachLine(index, hovered = false) {
   const languageBadge = languageWarning
     ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
   const verdict = learningVerdict(analysis);
-  const quote = analysis.romanization
-    ? `<span class="romanized-phrase" data-romanization="${escapeHTML(analysis.romanization)}" aria-label="${escapeHTML(`${line.text}: ${analysis.romanization}`)}">${escapeHTML(line.text)}</span>`
-    : escapeHTML(line.text);
+  const quote = glossedWordsHTML(line.text, analysis, 'coach-word');
   elements.coachBody.innerHTML = `<div class="coach-card">
     <div class="learning-verdict ${verdict.className}"><span class="verdict-icon">${verdict.className === 'learn' ? '✓' : '!'}</span><span><strong>${verdict.title}</strong><small>${escapeHTML(verdict.detail)}</small></span></div>
     <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>

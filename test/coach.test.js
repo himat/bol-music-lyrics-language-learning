@@ -39,5 +39,6 @@ test('requires a per-line language and target-language fit', () => {
   assert.ok(lineSchema.required.includes('targetLanguageFit'));
   assert.ok(lineSchema.required.includes('wordGlosses'));
   assert.ok(lineSchema.required.includes('romanization'));
+  assert.ok(lineSchema.properties.wordGlosses.items.required.includes('romanization'));
   assert.deepEqual(lineSchema.properties.targetLanguageFit.enum, ['target', 'mixed', 'other', 'unclear']);
 });
