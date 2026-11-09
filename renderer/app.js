@@ -37,7 +37,7 @@ const state = {
   track: demoTrack, lyrics: demoLyrics, analysis: demoAnalysis, activeIndex: -1, hoveredIndex: null,
   mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
-  loadToken: 0,
+  loadToken: 0, demoPinnedUntil: 0,
 };
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
@@ -181,8 +181,10 @@ async function analyzeCurrentSong(automatic = false) {
   }
 }
 
-function useDemo() {
+function useDemo(pinForExploration = true) {
   state.loadToken += 1;
+  state.demoPinnedUntil = pinForExploration ? Date.now() + 60000 : 0;
+  if (pinForExploration) state.lastRealTrackKey = '';
   state.mode = 'demo';
   state.track = { ...demoTrack, positionMs: 0, observedAt: Date.now() };
   state.lyrics = demoLyrics;
@@ -205,6 +207,7 @@ async function pollSpotify() {
       setSource(state.mode === 'demo' ? 'Demo · Spotify is not playing' : spotify.reason, false);
       return;
     }
+    if (state.mode === 'demo' && state.demoPinnedUntil > Date.now()) return;
     setSource(spotify.isPlaying ? 'Listening to Spotify' : 'Spotify paused', true);
     const key = trackKey(spotify);
     state.mode = 'spotify';
@@ -257,8 +260,8 @@ async function openSettings() {
 }
 
 elements.settingsButton.addEventListener('click', openSettings);
-elements.demoButton.addEventListener('click', useDemo);
-elements.homeButton.addEventListener('click', useDemo);
+elements.demoButton.addEventListener('click', () => useDemo(true));
+elements.homeButton.addEventListener('click', () => useDemo(true));
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
 elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false));
@@ -281,7 +284,7 @@ elements.settingsForm.addEventListener('submit', async (event) => {
 async function init() {
   state.settings = await window.bol.loadSettings();
   elements.languageLabel.textContent = `Learning ${state.settings.targetLanguage || 'Hindi'}`;
-  useDemo();
+  useDemo(false);
   await pollSpotify();
   setInterval(pollSpotify, 2000);
   setInterval(tick, 200);
