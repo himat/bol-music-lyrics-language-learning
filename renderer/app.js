@@ -29,7 +29,7 @@ const demoAnalysis = {
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
   'trackLanguages','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
-  'currentLineDock','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
+  'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','demoButton','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -160,7 +160,7 @@ function renderCurrentLineDock() {
   const translation = analysis?.translation
     ? escapeHTML(analysis.translation)
     : '<span class="translation-placeholder"></span>';
-  elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span>${escapeHTML(line.text)}</span>${languageTag}</span><span class="dock-translation">${translation}</span>`;
+  elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span class="dock-copy"><span>${escapeHTML(line.text)}</span>${languageTag}</span></span><span class="dock-translation">${translation}</span>`;
   elements.currentLineDock.hidden = false;
 }
 
@@ -221,6 +221,7 @@ async function loadTrack(track) {
   state.positionBase = track.positionMs;
   state.positionObservedAt = track.observedAt || Date.now();
   state.analysis = null;
+  elements.translationStatus.hidden = true;
   state.activeIndex = -1;
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
@@ -244,6 +245,13 @@ async function analyzeCurrentSong(automatic = false) {
   elements.analyzeButton.hidden = false;
   elements.analyzeButton.disabled = true;
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
+  elements.translationStatus.hidden = false;
+  elements.coachBody.innerHTML = `<div class="analysis-loading">
+    <span class="analysis-spinner"></span>
+    <strong>Translating this song</strong>
+    <p>Checking each lyric for its English meaning, language, and whether people actually say it.</p>
+    <span class="loading-detail">Usually takes a few seconds</span>
+  </div>`;
   try {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
     renderTrackLanguages();
@@ -251,9 +259,11 @@ async function analyzeCurrentSong(automatic = false) {
     renderCurrentLineDock();
     selectCoachLine(Math.max(0, state.activeIndex), false);
     elements.analyzeButton.hidden = true;
+    elements.translationStatus.hidden = true;
   } catch (error) {
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
+    elements.translationStatus.hidden = true;
     const message = String(error.message || 'Translation failed. Please try again.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
     elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
     if (!automatic || !/API key/i.test(message)) showToast(message, 6000);
@@ -268,6 +278,7 @@ function useDemo(pinForExploration = true) {
   state.track = { ...demoTrack, positionMs: 0, observedAt: Date.now() };
   state.lyrics = demoLyrics;
   state.analysis = demoAnalysis;
+  elements.translationStatus.hidden = true;
   state.positionBase = 0;
   state.positionObservedAt = Date.now();
   state.activeIndex = -1;
