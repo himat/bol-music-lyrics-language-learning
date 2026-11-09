@@ -10,7 +10,7 @@ const analysisSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['index', 'translation', 'romanization', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative', 'wordGlosses'],
+        required: ['index', 'translation', 'romanization', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative', 'dailyAlternativeTranslation', 'dailyAlternativeWordGlosses', 'wordGlosses'],
         properties: {
           index: { type: 'integer' },
           translation: { type: 'string' },
@@ -20,6 +20,16 @@ const analysisSchema = {
           register: { type: 'string', enum: ['common', 'casual', 'formal', 'poetic', 'uncommon', 'unclear'] },
           explanation: { type: 'string' },
           dailyAlternative: { type: 'string' },
+          dailyAlternativeTranslation: { type: 'string' },
+          dailyAlternativeWordGlosses: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['word', 'romanization', 'meaning'],
+              properties: { word: { type: 'string' }, romanization: { type: 'string' }, meaning: { type: 'string' } },
+            },
+          },
           wordGlosses: {
             type: 'array',
             items: {
@@ -35,36 +45,74 @@ const analysisSchema = {
   },
 };
 
+const wordGlossSchema = analysisSchema.properties.lines.items.properties.wordGlosses;
+const glossCorrectionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['lines'],
+  properties: {
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['index', 'wordGlosses', 'dailyAlternativeWordGlosses'],
+        properties: { index: { type: 'integer' }, wordGlosses: wordGlossSchema, dailyAlternativeWordGlosses: wordGlossSchema },
+      },
+    },
+  },
+};
+
+async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens }) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: model || 'gpt-4o-mini',
+      store: false,
+      instructions,
+      input: JSON.stringify(input),
+      text: { format: { type: 'json_schema', name, strict: true, schema } },
+      max_output_tokens: maxOutputTokens,
+    }),
+    signal: AbortSignal.timeout(90000),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || `OpenAI returned ${response.status}.`);
+  const outputText = extractOutputText(body);
+  if (!outputText) throw new Error('The language coach returned no analysis.');
+  return JSON.parse(outputText);
+}
+
 function createCoach({ apiKey, model, targetLanguage }) {
   return {
     async analyze({ track, lines }) {
       const plan = planAnalysis(lines);
       const batches = await Promise.all(plan.uniqueChunks.map(async (compactLines) => {
-      const response = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model || 'gpt-4o-mini',
-          store: false,
-          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, give a genuinely common daily alternative in the original language with an English gloss. If it is already natural daily speech, dailyAlternative must be an empty string. Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
-          input: JSON.stringify({ track: { title: track.title, artist: track.artist }, lines: compactLines }),
-          text: {
-            format: {
-              type: 'json_schema',
-              name: 'song_language_coach',
-              strict: true,
-              schema: analysisSchema,
-            },
-          },
-          max_output_tokens: 6000,
-        }),
-        signal: AbortSignal.timeout(90000),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message || `OpenAI returned ${response.status}.`);
-      const outputText = extractOutputText(body);
-      if (!outputText) throw new Error('The language coach returned no analysis.');
-      return JSON.parse(outputText);
+        let batch = await requestStructured({
+          apiKey,
+          model,
+          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
+          input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
+          name: 'song_language_coach',
+          schema: analysisSchema,
+          maxOutputTokens: 6000,
+        });
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const missing = findMissingGlosses(compactLines, batch.lines);
+          if (!missing.length) break;
+          const correction = await requestStructured({
+            apiKey,
+            model,
+            instructions: 'Supply separate word glosses for every requested original and daily-alternative word. Copy each surface word exactly. Never combine words. Return a readable Latin-script romanization and a short contextual English meaning for each one. Use an empty array when a category has no requested words.',
+            input: { track: { title: track.title, artist: track.artist }, missing },
+            name: 'missing_word_glosses',
+            schema: glossCorrectionSchema,
+            maxOutputTokens: 3000,
+          });
+          batch = mergeGlossCorrections(batch, correction);
+        }
+        return batch;
       }));
       const byCanonicalIndex = new Map(batches.flatMap((batch) => batch.lines).map((line) => [line.index, line]));
       return {
@@ -77,6 +125,51 @@ function createCoach({ apiKey, model, targetLanguage }) {
         }),
       };
     },
+  };
+}
+
+function normalizedWord(value) {
+  return String(value || '').normalize('NFKC').replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').toLocaleLowerCase();
+}
+
+function lexicalWords(text) {
+  const words = [];
+  const seen = new Set();
+  for (const { segment, isWordLike } of new Intl.Segmenter(undefined, { granularity: 'word' }).segment(String(text))) {
+    const normalized = isWordLike ? normalizedWord(segment) : '';
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    words.push(segment);
+  }
+  return words;
+}
+
+function findMissingGlosses(sourceLines, analyzedLines) {
+  const analysisByIndex = new Map((analyzedLines || []).map((line) => [line.index, line]));
+  return sourceLines.flatMap((line) => {
+    const analysis = analysisByIndex.get(line.index);
+    const existing = new Set((analysis?.wordGlosses || []).map((gloss) => normalizedWord(gloss.word)));
+    const words = lexicalWords(line.text).filter((word) => !existing.has(normalizedWord(word)));
+    const alternativeExisting = new Set((analysis?.dailyAlternativeWordGlosses || []).map((gloss) => normalizedWord(gloss.word)));
+    const dailyAlternativeWords = lexicalWords(analysis?.dailyAlternative || '').filter((word) => !alternativeExisting.has(normalizedWord(word)));
+    return words.length || dailyAlternativeWords.length
+      ? [{ index: line.index, text: line.text, words, dailyAlternative: analysis?.dailyAlternative || '', dailyAlternativeWords }]
+      : [];
+  });
+}
+
+function mergeGlossCorrections(batch, correction) {
+  const additions = new Map((correction?.lines || []).map((line) => [line.index, line]));
+  return {
+    ...batch,
+    lines: batch.lines.map((line) => {
+      const correctionLine = additions.get(line.index);
+      return {
+        ...line,
+        wordGlosses: [...line.wordGlosses, ...(correctionLine?.wordGlosses || [])],
+        dailyAlternativeWordGlosses: [...line.dailyAlternativeWordGlosses, ...(correctionLine?.dailyAlternativeWordGlosses || [])],
+      };
+    }),
   };
 }
 
@@ -105,4 +198,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, extractOutputText, planAnalysis };
+module.exports = { createCoach, analysisSchema, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };

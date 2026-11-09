@@ -167,6 +167,10 @@ function renderLyrics() {
     const analysis = analysisFor(line.index);
     const row = document.createElement('div');
     row.className = 'lyric-row';
+    if (state.lyrics.synced) {
+      row.classList.add('seekable');
+      row.title = `Jump to ${formatTime(line.timeMs)}`;
+    }
     if (analysis?.targetLanguageFit) row.classList.add(`language-${analysis.targetLanguageFit}`);
     row.dataset.index = line.index;
     const original = document.createElement('div');
@@ -188,6 +192,7 @@ function renderLyrics() {
     row.append(original, translation);
     row.addEventListener('mouseenter', () => selectCoachLine(line.index, true));
     row.addEventListener('mouseleave', () => { state.hoveredIndex = null; updateRows(); selectCoachLine(state.activeIndex, false); });
+    row.addEventListener('click', () => seekToLine(line));
     elements.lyricsScroll.appendChild(row);
   }
   updateRows();
@@ -252,7 +257,7 @@ function selectCoachLine(index, hovered = false) {
     return;
   }
   const alternative = analysis.dailyAlternative
-    ? `<div class="alternative"><small>SAY THIS IN DAILY LIFE</small><p>${escapeHTML(analysis.dailyAlternative)}</p></div>` : '';
+    ? `<div class="alternative"><small>SAY THIS IN DAILY LIFE</small><p>${glossedWordsHTML(analysis.dailyAlternative, { wordGlosses: analysis.dailyAlternativeWordGlosses }, 'coach-word')}</p>${analysis.dailyAlternativeTranslation ? `<span class="alternative-translation">${escapeHTML(analysis.dailyAlternativeTranslation)}</span>` : ''}</div>` : '';
   const languageWarning = languageLabel(analysis);
   const languageBadge = languageWarning
     ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
@@ -399,6 +404,26 @@ async function controlPlayback(action) {
     setTimeout(pollSpotify, 250);
   } catch (error) {
     showToast(String(error.message || 'Spotify control failed.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
+    await pollSpotify();
+  }
+}
+
+async function seekToLine(line) {
+  if (state.mode !== 'spotify' || !state.lyrics.synced || !Number.isFinite(line?.timeMs)) return;
+  const positionMs = Math.max(0, line.timeMs);
+  state.positionBase = positionMs;
+  state.positionObservedAt = Date.now();
+  state.track.positionMs = positionMs;
+  state.activeIndex = line.index;
+  state.userBrowsing = false;
+  updateRows();
+  renderCurrentLineDock();
+  selectCoachLine(line.index, false);
+  try {
+    await window.bol.spotifySeek(positionMs);
+    setTimeout(pollSpotify, 250);
+  } catch (error) {
+    showToast(String(error.message || 'Could not jump to that lyric.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
     await pollSpotify();
   }
 }
