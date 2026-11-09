@@ -34,16 +34,39 @@ async function fetchLyrics(track) {
   const params = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
   if (track.album) params.set('album_name', track.album);
   if (track.durationMs > 1000) params.set('duration', String(Math.round(track.durationMs / 1000)));
+  let exact = null;
   try {
-    return normalize(await request(`${BASE_URL}/get?${params}`));
+    exact = await request(`${BASE_URL}/get?${params}`);
   } catch (error) {
     if (error.status !== 404) throw error;
-    const search = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
-    const results = await request(`${BASE_URL}/search?${search}`);
-    if (!Array.isArray(results) || !results.length) throw error;
-    const preferred = results.find((item) => item.syncedLyrics) || results[0];
-    return normalize(preferred);
   }
+  if (exact?.syncedLyrics) return normalize(exact);
+  const search = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
+  let results = [];
+  try {
+    results = await request(`${BASE_URL}/search?${search}`);
+  } catch (error) {
+    if (exact) return normalize(exact);
+    throw error;
+  }
+  const preferred = chooseBestLyrics(exact, results, track.durationMs);
+  if (!preferred) {
+    const error = new Error('No lyrics found for this track.');
+    error.status = 404;
+    throw error;
+  }
+  return normalize(preferred);
 }
 
-module.exports = { fetchLyrics, normalize };
+function chooseBestLyrics(exact, results, durationMs = 0) {
+  const records = [exact, ...(Array.isArray(results) ? results : [])].filter(Boolean);
+  if (!records.length) return null;
+  const targetSeconds = durationMs / 1000;
+  const distance = (record) => targetSeconds > 0 ? Math.abs(Number(record.duration || 0) - targetSeconds) : 0;
+  const durationMatched = records.filter((record) => !targetSeconds || distance(record) <= 3);
+  const pool = durationMatched.length ? durationMatched : records;
+  const synced = pool.filter((record) => record.syncedLyrics).sort((a, b) => distance(a) - distance(b));
+  return synced[0] || exact || pool[0];
+}
+
+module.exports = { fetchLyrics, normalize, chooseBestLyrics };

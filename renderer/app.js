@@ -28,7 +28,7 @@ const demoAnalysis = {
 
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
-  'trackLanguages','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
+  'trackLanguages','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','demoButton','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
@@ -38,6 +38,7 @@ const state = {
   mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, demoPinnedUntil: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
+  isAnalyzing: false,
 };
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
@@ -113,6 +114,9 @@ function renderLyrics() {
   elements.emptyState.hidden = true;
   elements.lyricsScroll.hidden = false;
   elements.lyricsScroll.innerHTML = '';
+  elements.syncStatus.hidden = false;
+  elements.syncStatus.textContent = state.lyrics.synced ? 'Synced lyrics' : 'Plain lyrics · no timing';
+  elements.syncStatus.classList.toggle('unsynced', !state.lyrics.synced);
   for (const line of state.lyrics.lines) {
     const analysis = analysisFor(line.index);
     const row = document.createElement('div');
@@ -187,7 +191,16 @@ function selectCoachLine(index, hovered = false) {
   const line = state.lyrics.lines.find((item) => item.index === index);
   const analysis = analysisFor(index);
   if (!line || !analysis) {
-    elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : 'Add an API key, then analyze the song to see daily-speech guidance.'}</p></div>`;
+    if (state.isAnalyzing) {
+      elements.coachBody.innerHTML = `<div class="analysis-loading line-loading">
+        <span class="analysis-spinner"></span>
+        <strong>Translating this line</strong>
+        ${line ? `<p class="loading-source">${escapeHTML(line.text)}</p>` : ''}
+        <span class="loading-detail">Meaning and usage are on the way</span>
+      </div>`;
+    } else {
+      elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : 'Add an API key, then analyze the song to see daily-speech guidance.'}</p></div>`;
+    }
     return;
   }
   const alternative = analysis.dailyAlternative
@@ -213,6 +226,7 @@ function setEmpty(title, message) {
   elements.emptyMessage.textContent = message;
   elements.coachBody.innerHTML = '<div class="coach-intro"><p>Play a song to begin learning.</p></div>';
   elements.currentLineDock.hidden = true;
+  elements.syncStatus.hidden = true;
 }
 
 async function loadTrack(track) {
@@ -221,7 +235,9 @@ async function loadTrack(track) {
   state.positionBase = track.positionMs;
   state.positionObservedAt = track.observedAt || Date.now();
   state.analysis = null;
+  state.isAnalyzing = false;
   elements.translationStatus.hidden = true;
+  elements.syncStatus.hidden = true;
   state.activeIndex = -1;
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
@@ -244,6 +260,7 @@ async function analyzeCurrentSong(automatic = false) {
   if (!state.lyrics?.lines?.length || state.analysis) return;
   elements.analyzeButton.hidden = false;
   elements.analyzeButton.disabled = true;
+  state.isAnalyzing = true;
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   elements.translationStatus.hidden = false;
   elements.coachBody.innerHTML = `<div class="analysis-loading">
@@ -254,6 +271,7 @@ async function analyzeCurrentSong(automatic = false) {
   </div>`;
   try {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
+    state.isAnalyzing = false;
     renderTrackLanguages();
     renderLyrics();
     renderCurrentLineDock();
@@ -261,6 +279,7 @@ async function analyzeCurrentSong(automatic = false) {
     elements.analyzeButton.hidden = true;
     elements.translationStatus.hidden = true;
   } catch (error) {
+    state.isAnalyzing = false;
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
     elements.translationStatus.hidden = true;
@@ -278,6 +297,7 @@ function useDemo(pinForExploration = true) {
   state.track = { ...demoTrack, positionMs: 0, observedAt: Date.now() };
   state.lyrics = demoLyrics;
   state.analysis = demoAnalysis;
+  state.isAnalyzing = false;
   elements.translationStatus.hidden = true;
   state.positionBase = 0;
   state.positionObservedAt = Date.now();
