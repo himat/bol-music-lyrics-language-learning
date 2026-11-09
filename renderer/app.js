@@ -38,7 +38,7 @@ const state = {
   mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, demoPinnedUntil: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
-  isAnalyzing: false,
+  isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null,
 };
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
@@ -53,6 +53,25 @@ function showToast(message, duration = 3200) {
   elements.toast.classList.add('visible');
   clearTimeout(state.toastTimer);
   state.toastTimer = setTimeout(() => elements.toast.classList.remove('visible'), duration);
+}
+
+function updateAnalysisElapsed() {
+  if (!state.analysisStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - state.analysisStartedAt) / 1000));
+  for (const element of document.querySelectorAll('.loading-elapsed')) element.textContent = `${elapsed}s elapsed`;
+}
+
+function startAnalysisTimer() {
+  clearInterval(state.analysisTimer);
+  state.analysisStartedAt = Date.now();
+  updateAnalysisElapsed();
+  state.analysisTimer = setInterval(updateAnalysisElapsed, 1000);
+}
+
+function stopAnalysisTimer() {
+  clearInterval(state.analysisTimer);
+  state.analysisTimer = null;
+  state.analysisStartedAt = 0;
 }
 
 function setSource(label, connected) {
@@ -197,7 +216,9 @@ function selectCoachLine(index, hovered = false) {
         <strong>Translating this line</strong>
         ${line ? `<p class="loading-source">${escapeHTML(line.text)}</p>` : ''}
         <span class="loading-detail">Meaning and usage are on the way</span>
+        <span class="loading-elapsed"></span>
       </div>`;
+      updateAnalysisElapsed();
     } else {
       elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : 'Add an API key, then analyze the song to see daily-speech guidance.'}</p></div>`;
     }
@@ -236,6 +257,7 @@ async function loadTrack(track) {
   state.positionObservedAt = track.observedAt || Date.now();
   state.analysis = null;
   state.isAnalyzing = false;
+  stopAnalysisTimer();
   elements.translationStatus.hidden = true;
   elements.syncStatus.hidden = true;
   state.activeIndex = -1;
@@ -261,6 +283,7 @@ async function analyzeCurrentSong(automatic = false) {
   elements.analyzeButton.hidden = false;
   elements.analyzeButton.disabled = true;
   state.isAnalyzing = true;
+  startAnalysisTimer();
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   elements.translationStatus.hidden = false;
   elements.coachBody.innerHTML = `<div class="analysis-loading">
@@ -268,10 +291,12 @@ async function analyzeCurrentSong(automatic = false) {
     <strong>Translating this song</strong>
     <p>Checking each lyric for its English meaning, language, and whether people actually say it.</p>
     <span class="loading-detail">Usually takes a few seconds</span>
+    <span class="loading-elapsed">0s elapsed</span>
   </div>`;
   try {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
     state.isAnalyzing = false;
+    stopAnalysisTimer();
     renderTrackLanguages();
     renderLyrics();
     renderCurrentLineDock();
@@ -280,6 +305,7 @@ async function analyzeCurrentSong(automatic = false) {
     elements.translationStatus.hidden = true;
   } catch (error) {
     state.isAnalyzing = false;
+    stopAnalysisTimer();
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
     elements.translationStatus.hidden = true;
@@ -298,6 +324,7 @@ function useDemo(pinForExploration = true) {
   state.lyrics = demoLyrics;
   state.analysis = demoAnalysis;
   state.isAnalyzing = false;
+  stopAnalysisTimer();
   elements.translationStatus.hidden = true;
   state.positionBase = 0;
   state.positionObservedAt = Date.now();
@@ -406,6 +433,18 @@ elements.lyricsScroll.addEventListener('scroll', () => {
   clearTimeout(state.browseTimer);
   state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
 }, { passive: true });
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'Space' || event.repeat || state.mode !== 'spotify') return;
+  const target = event.target;
+  const isInteractive = target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLButtonElement
+    || target?.isContentEditable
+    || elements.settingsDialog.open;
+  if (isInteractive) return;
+  event.preventDefault();
+  controlPlayback('playPause');
+});
 elements.settingsForm.addEventListener('submit', async (event) => {
   if (event.submitter?.value !== 'default') return;
   event.preventDefault();
