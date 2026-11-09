@@ -61,13 +61,12 @@ button { color: inherit; }
 .sync-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sync-status.unsynced { color: var(--coral); border-color: rgba(255,134,111,.28); }
 .transport-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
-.transport-controls { display: flex; align-items: center; gap: 3px; }
-.transport-controls button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; color: #a3a29b; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
-.transport-controls button:hover:not(:disabled) { color: var(--ink); background: rgba(255,255,255,.06); }
+.transport-controls { display: flex; align-items: center; gap: 6px; }
+.transport-controls button { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; color: #171713; background: var(--lime); border: 0; border-radius: 50%; cursor: pointer; transition: background .15s, transform .15s; }
+.transport-controls button:hover:not(:disabled) { color: #171713; background: #e4ff93; transform: scale(1.04); }
 .transport-controls button:disabled { opacity: .3; cursor: default; }
 .transport-controls svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
-.transport-controls .play-pause-button { width: 31px; height: 31px; color: #171713; background: var(--lime); }
-.transport-controls .play-pause-button:hover:not(:disabled) { color: #171713; background: #e4ff93; transform: scale(1.04); }
+.transport-controls .play-pause-button { color: #171713; background: var(--lime); }
 .transport-controls .play-pause-button svg { width: 14px; height: 14px; }
 .progress-row { display: grid; grid-template-columns: 30px minmax(80px, 270px) 34px; gap: 9px; align-items: center; color: #74746e; font-size: 10px; font-variant-numeric: tabular-nums; }
 .progress-track { height: 3px; border-radius: 99px; background: #363632; overflow: hidden; }
