@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const { getSpotifyState } = require('./src/spotify');
+const { getSpotifyState, controlSpotify } = require('./src/spotify');
 const { fetchLyrics } = require('./src/lyrics');
 const { createCoach } = require('./src/coach');
 
@@ -60,6 +60,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('spotify:state', () => getSpotifyState());
+  ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
   ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
   ipcMain.handle('coach:analyze', async (_event, payload) => {
     const settings = await loadSettings();

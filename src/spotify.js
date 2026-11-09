@@ -52,4 +52,20 @@ async function getSpotifyState() {
   }
 }
 
-module.exports = { getSpotifyState };
+function spotifyControlScript(action) {
+  const commands = {
+    previous: 'previous track',
+    playPause: 'playpause',
+    next: 'next track',
+  };
+  if (!commands[action]) throw new Error('Unknown Spotify control.');
+  return `tell application "Spotify" to ${commands[action]}`;
+}
+
+async function controlSpotify(action) {
+  if (process.platform !== 'darwin') throw new Error('Spotify controls currently require macOS.');
+  await execFileAsync('/usr/bin/osascript', ['-e', spotifyControlScript(action)], { timeout: 3000 });
+  return getSpotifyState();
+}
+
+module.exports = { getSpotifyState, controlSpotify, spotifyControlScript };

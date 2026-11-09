@@ -29,15 +29,15 @@ const demoAnalysis = {
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
   'trackLanguages','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
-  'analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
-  'modelInput','apiKeyHelp','demoButton','homeButton',
+  'currentLineDock','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
+  'modelInput','apiKeyHelp','demoButton','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = {
   track: demoTrack, lyrics: demoLyrics, analysis: demoAnalysis, activeIndex: -1, hoveredIndex: null,
   mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
-  loadToken: 0, demoPinnedUntil: 0,
+  loadToken: 0, demoPinnedUntil: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
 };
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
@@ -65,6 +65,11 @@ function renderTrack() {
   elements.trackArtist.textContent = track.artist + (track.album && !track.demo ? ` · ${track.album}` : '');
   elements.durationTime.textContent = formatTime(track.durationMs);
   elements.playingBars.classList.toggle('paused', !track.isPlaying);
+  elements.playPauseButton.innerHTML = track.isPlaying
+    ? '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7V5z"/></svg>';
+  elements.playPauseButton.setAttribute('aria-label', track.isPlaying ? 'Pause' : 'Play');
+  for (const button of [elements.previousButton, elements.playPauseButton, elements.nextButton]) button.disabled = Boolean(track.demo);
   elements.spotifyButton.hidden = !track.spotifyUrl;
   elements.coverArt.classList.toggle('demo-cover', !track.artworkUrl);
   elements.coverArt.style.backgroundImage = track.artworkUrl ? `url("${track.artworkUrl.replaceAll('"', '%22')}")` : '';
@@ -136,9 +141,36 @@ function renderLyrics() {
     elements.lyricsScroll.appendChild(row);
   }
   updateRows();
+  renderCurrentLineDock();
   if (!state.analysis) {
     elements.coachBody.innerHTML = '<div class="coach-intro"><p>Add an API key, then analyze the song to get English translations and daily-speech guidance.</p></div>';
   }
+}
+
+function renderCurrentLineDock() {
+  const line = state.lyrics?.lines?.find((item) => item.index === state.activeIndex);
+  if (!line) {
+    elements.currentLineDock.hidden = true;
+    elements.currentLineDock.innerHTML = '';
+    return;
+  }
+  const analysis = analysisFor(line.index);
+  const label = languageLabel(analysis);
+  const languageTag = label ? `<small class="language-tag ${analysis.targetLanguageFit}">${escapeHTML(label)}</small>` : '';
+  const translation = analysis?.translation
+    ? escapeHTML(analysis.translation)
+    : '<span class="translation-placeholder"></span>';
+  elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span>${escapeHTML(line.text)}</span>${languageTag}</span><span class="dock-translation">${translation}</span>`;
+  elements.currentLineDock.hidden = false;
+}
+
+function scrollToActive() {
+  const row = elements.lyricsScroll.querySelector(`[data-index="${state.activeIndex}"]`);
+  if (!row) return;
+  state.userBrowsing = false;
+  state.programmaticScroll = true;
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  setTimeout(() => { state.programmaticScroll = false; }, 650);
 }
 
 function updateRows() {
@@ -180,6 +212,7 @@ function setEmpty(title, message) {
   elements.emptyTitle.textContent = title;
   elements.emptyMessage.textContent = message;
   elements.coachBody.innerHTML = '<div class="coach-intro"><p>Play a song to begin learning.</p></div>';
+  elements.currentLineDock.hidden = true;
 }
 
 async function loadTrack(track) {
@@ -215,6 +248,7 @@ async function analyzeCurrentSong(automatic = false) {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
     renderTrackLanguages();
     renderLyrics();
+    renderCurrentLineDock();
     selectCoachLine(Math.max(0, state.activeIndex), false);
     elements.analyzeButton.hidden = true;
   } catch (error) {
@@ -270,6 +304,24 @@ async function pollSpotify() {
   }
 }
 
+async function controlPlayback(action) {
+  if (state.mode !== 'spotify') return;
+  try {
+    if (action === 'playPause') {
+      const currentPosition = estimatedPosition();
+      state.track.isPlaying = !state.track.isPlaying;
+      state.positionBase = currentPosition;
+      state.positionObservedAt = Date.now();
+      renderTrack();
+    }
+    await window.bol.spotifyControl(action);
+    setTimeout(pollSpotify, 250);
+  } catch (error) {
+    showToast(String(error.message || 'Spotify control failed.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
+    await pollSpotify();
+  }
+}
+
 function tick() {
   const position = estimatedPosition();
   elements.elapsedTime.textContent = formatTime(position);
@@ -284,9 +336,12 @@ function tick() {
   if (next !== state.activeIndex) {
     state.activeIndex = next;
     updateRows();
+    renderCurrentLineDock();
     const row = elements.lyricsScroll.querySelector(`[data-index="${next}"]`);
-    if (row && state.hoveredIndex === null) {
+    if (row && state.hoveredIndex === null && !state.userBrowsing) {
+      state.programmaticScroll = true;
       row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => { state.programmaticScroll = false; }, 650);
       selectCoachLine(next, false);
     }
   }
@@ -310,6 +365,16 @@ elements.homeButton.addEventListener('click', () => useDemo(true));
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
 elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false));
+elements.previousButton.addEventListener('click', () => controlPlayback('previous'));
+elements.playPauseButton.addEventListener('click', () => controlPlayback('playPause'));
+elements.nextButton.addEventListener('click', () => controlPlayback('next'));
+elements.currentLineDock.addEventListener('click', scrollToActive);
+elements.lyricsScroll.addEventListener('scroll', () => {
+  if (state.programmaticScroll) return;
+  state.userBrowsing = true;
+  clearTimeout(state.browseTimer);
+  state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
+}, { passive: true });
 elements.settingsForm.addEventListener('submit', async (event) => {
   if (event.submitter?.value !== 'default') return;
   event.preventDefault();

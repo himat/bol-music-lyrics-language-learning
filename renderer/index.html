@@ -37,10 +37,21 @@
           <h1 id="trackTitle">Aaj Ka Safar</h1>
           <p id="trackArtist">Bol demo · everyday Hindi</p>
           <div class="track-languages" id="trackLanguages" hidden></div>
-          <div class="progress-row">
-            <span id="elapsedTime">0:00</span>
-            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-            <span id="durationTime">0:25</span>
+          <div class="transport-row">
+            <div class="transport-controls" aria-label="Spotify playback controls">
+              <button id="previousButton" aria-label="Previous track" title="Previous track">
+                <svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-9 6 9 6V6Z"/></svg>
+              </button>
+              <button class="play-pause-button" id="playPauseButton" aria-label="Play" title="Play or pause"></button>
+              <button id="nextButton" aria-label="Next track" title="Next track">
+                <svg viewBox="0 0 24 24"><path d="M18 5v14M6 6l9 6-9 6V6Z"/></svg>
+              </button>
+            </div>
+            <div class="progress-row">
+              <span id="elapsedTime">0:00</span>
+              <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+              <span id="durationTime">0:25</span>
+            </div>
           </div>
         </div>
         <button class="spotify-button" id="spotifyButton" hidden>
@@ -54,6 +65,7 @@
           <div class="column-headings">
             <span>LYRICS</span><span>ENGLISH</span>
           </div>
+          <button class="current-line-dock" id="currentLineDock" title="Jump to the current lyric" hidden></button>
           <div class="lyrics-scroll" id="lyricsScroll"></div>
           <div class="empty-state" id="emptyState" hidden>
             <div class="empty-glyph">♪</div>

@@ -7,6 +7,7 @@
   --lime: #d9ff73;
   --coral: #ff866f;
   --lavender: #a99cff;
+  --sky: #8fd6ff;
 }
 
 * { box-sizing: border-box; }
@@ -55,23 +56,41 @@ button { color: inherit; }
 .track-language-pill.other { color: var(--coral); border-color: rgba(255,134,111,.26); }
 .track-language-pill.mixed { color: var(--lavender); border-color: rgba(169,156,255,.28); }
 .track-language-pill em { color: #77766f; font-style: normal; font-weight: 500; }
-.progress-row { display: grid; grid-template-columns: 30px minmax(80px, 330px) 34px; gap: 9px; align-items: center; margin-top: 13px; color: #74746e; font-size: 10px; font-variant-numeric: tabular-nums; }
+.transport-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.transport-controls { display: flex; align-items: center; gap: 3px; }
+.transport-controls button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; color: #a3a29b; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
+.transport-controls button:hover:not(:disabled) { color: var(--ink); background: rgba(255,255,255,.06); }
+.transport-controls button:disabled { opacity: .3; cursor: default; }
+.transport-controls svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
+.transport-controls .play-pause-button { width: 31px; height: 31px; color: #171713; background: var(--lime); }
+.transport-controls .play-pause-button:hover:not(:disabled) { color: #171713; background: #e4ff93; transform: scale(1.04); }
+.transport-controls .play-pause-button svg { width: 14px; height: 14px; }
+.progress-row { display: grid; grid-template-columns: 30px minmax(80px, 270px) 34px; gap: 9px; align-items: center; color: #74746e; font-size: 10px; font-variant-numeric: tabular-nums; }
 .progress-track { height: 3px; border-radius: 99px; background: #363632; overflow: hidden; }
 .progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--lime); transition: width .2s linear; }
 .spotify-button { display: flex; align-items: center; gap: 8px; padding: 10px 14px; color: #c8c7bf; background: transparent; border: 1px solid var(--line); border-radius: 11px; font-size: 12px; cursor: pointer; }
 .spotify-button:hover { background: rgba(255,255,255,.05); }
 .spotify-button svg { width: 16px; fill: #1ed760; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 335px; gap: 0; margin-top: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.24); }
-.lyrics-panel { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; }
+.lyrics-panel { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: 42px auto minmax(0, 1fr); overflow: hidden; }
 .column-headings { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 0 28px; align-items: center; color: #74736e; font-size: 9px; letter-spacing: .14em; border-bottom: 1px solid var(--line); }
+.current-line-dock { position: relative; z-index: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 100%; padding: 13px 28px 13px 34px; color: var(--ink); text-align: left; background: rgba(217,255,115,.075); border: 0; border-bottom: 1px solid rgba(217,255,115,.16); cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.16); }
+.current-line-dock::before { content: ''; position: absolute; left: 17px; top: 14px; bottom: 14px; width: 2px; border-radius: 4px; background: var(--lime); box-shadow: 0 0 10px rgba(217,255,115,.45); }
+.current-line-dock:hover { background: rgba(217,255,115,.11); }
+.current-line-dock .dock-original { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.current-line-dock .dock-translation { align-self: center; color: #d8d6ce; font: 600 14px/1.35 Georgia, serif; }
+.current-line-dock .dock-live { flex: 0 0 auto; padding: 3px 5px; color: #171713; background: var(--lime); border-radius: 4px; font-size: 7px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.current-line-dock .language-tag { margin-left: 2px; }
 .lyrics-scroll { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: calc(25vh - 70px) 18px; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: #41413c transparent; }
 .lyric-row { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 14px 10px; border-radius: 13px; color: #85857f; opacity: .6; transition: opacity .22s, color .22s, background .22s, transform .22s; cursor: default; }
 .lyric-row::before { content: ''; position: absolute; left: -18px; top: 12px; bottom: 12px; width: 2px; border-radius: 9px; background: transparent; }
-.lyric-row:hover, .lyric-row.hovered { color: #d8d6ce; opacity: 1; background: rgba(255,255,255,.035); }
-.lyric-row.active { color: var(--ink); opacity: 1; transform: translateX(5px); }
+.lyric-row:hover:not(.active), .lyric-row.hovered:not(.active) { color: #e1f2ff; opacity: 1; background: rgba(143,214,255,.065); }
+.lyric-row:hover:not(.active)::before, .lyric-row.hovered:not(.active)::before { background: var(--sky); box-shadow: 0 0 11px rgba(143,214,255,.34); }
+.lyric-row.active { color: var(--ink); opacity: 1; background: rgba(217,255,115,.055); transform: translateX(5px); }
 .lyric-row.active::before { background: var(--lime); box-shadow: 0 0 13px rgba(217,255,115,.5); }
 .lyric-row.language-other { opacity: .38; }
-.lyric-row.language-other:hover, .lyric-row.language-other.active { opacity: .85; background: rgba(255,134,111,.055); }
+.lyric-row.language-other:hover, .lyric-row.language-other.active { opacity: .85; }
+.lyric-row.language-other.active { background: rgba(255,134,111,.055); }
 .lyric-row.language-other.active::before { background: var(--coral); box-shadow: 0 0 13px rgba(255,134,111,.4); }
 .lyric-row.language-mixed { background: linear-gradient(90deg, rgba(169,156,255,.04), transparent 55%); }
 .lyric-row.language-mixed.active::before { background: var(--lavender); box-shadow: 0 0 13px rgba(169,156,255,.4); }
