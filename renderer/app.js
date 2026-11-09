@@ -28,7 +28,7 @@ const demoAnalysis = {
 
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
-  'trackLanguages','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
+  'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','demoButton','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
@@ -113,6 +113,7 @@ function renderTrackLanguages() {
   const languages = [...counts.values()].sort((a, b) => b.count - a.count);
   elements.trackLanguages.innerHTML = '';
   elements.trackLanguages.hidden = languages.length === 0;
+  if (languages.length > 0) elements.languageDetectionStatus.hidden = true;
   for (const item of languages) {
     const pill = document.createElement('span');
     pill.className = `track-language-pill ${item.fit}`;
@@ -127,6 +128,21 @@ function analysisFor(index) { return state.analysis?.lines?.find((line) => line.
 function languageLabel(analysis) {
   if (!analysis || analysis.targetLanguageFit === 'target') return '';
   return analysis.language || 'Language unclear';
+}
+
+function learningVerdict(analysis) {
+  const naturalDailySpeech = analysis.targetLanguageFit === 'target'
+    && ['common', 'casual'].includes(analysis.register)
+    && !analysis.dailyAlternative;
+  if (naturalDailySpeech) {
+    return { className: 'learn', title: 'Learn as is', detail: 'Natural for daily speech' };
+  }
+  const detail = analysis.targetLanguageFit !== 'target'
+    ? `${analysis.language || 'Another language'} · not your target language`
+    : analysis.dailyAlternative
+      ? 'Use the daily alternative below'
+      : 'Not natural for everyday conversation';
+  return { className: 'adapt', title: 'Don’t learn as is', detail };
 }
 
 function renderLyrics() {
@@ -229,7 +245,9 @@ function selectCoachLine(index, hovered = false) {
   const languageWarning = languageLabel(analysis);
   const languageBadge = languageWarning
     ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
+  const verdict = learningVerdict(analysis);
   elements.coachBody.innerHTML = `<div class="coach-card">
+    <div class="learning-verdict ${verdict.className}"><span class="verdict-icon">${verdict.className === 'learn' ? '✓' : '!'}</span><span><strong>${verdict.title}</strong><small>${escapeHTML(verdict.detail)}</small></span></div>
     <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
     <p class="coach-quote">${escapeHTML(line.text)}</p>
     <p class="coach-translation">“${escapeHTML(analysis.translation)}”</p>
@@ -260,6 +278,7 @@ async function loadTrack(track) {
   stopAnalysisTimer();
   elements.translationStatus.hidden = true;
   elements.syncStatus.hidden = true;
+  elements.languageDetectionStatus.hidden = true;
   state.activeIndex = -1;
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
@@ -284,6 +303,9 @@ async function analyzeCurrentSong(automatic = false) {
   elements.analyzeButton.disabled = true;
   state.isAnalyzing = true;
   startAnalysisTimer();
+  elements.languageDetectionStatus.hidden = false;
+  elements.languageDetectionStatus.classList.remove('unavailable');
+  elements.languageDetectionStatus.textContent = 'Detecting languages…';
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   elements.translationStatus.hidden = false;
   elements.coachBody.innerHTML = `<div class="analysis-loading">
@@ -306,6 +328,9 @@ async function analyzeCurrentSong(automatic = false) {
   } catch (error) {
     state.isAnalyzing = false;
     stopAnalysisTimer();
+    elements.languageDetectionStatus.hidden = false;
+    elements.languageDetectionStatus.classList.add('unavailable');
+    elements.languageDetectionStatus.textContent = 'Language not analyzed';
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
     elements.translationStatus.hidden = true;
@@ -325,6 +350,7 @@ function useDemo(pinForExploration = true) {
   state.analysis = demoAnalysis;
   state.isAnalyzing = false;
   stopAnalysisTimer();
+  elements.languageDetectionStatus.hidden = true;
   elements.translationStatus.hidden = true;
   state.positionBase = 0;
   state.positionObservedAt = Date.now();
