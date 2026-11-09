@@ -13,6 +13,8 @@ const state = {
   loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
 };
+let spotifyPollTimer = null;
+let tickTimer = null;
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
 function formatTime(ms) { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -401,7 +403,7 @@ async function controlPlayback(action) {
       renderTrack();
     }
     await window.bol.spotifyControl(action);
-    setTimeout(pollSpotify, 250);
+    scheduleSpotifyPoll(250);
   } catch (error) {
     showToast(String(error.message || 'Spotify control failed.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
     await pollSpotify();
@@ -423,7 +425,7 @@ async function seekToLine(line) {
   renderTrack();
   try {
     await window.bol.spotifySeek(positionMs, true);
-    setTimeout(pollSpotify, 250);
+    scheduleSpotifyPoll(250);
   } catch (error) {
     showToast(String(error.message || 'Could not jump to that lyric.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
     await pollSpotify();
@@ -453,6 +455,24 @@ function tick() {
       selectCoachLine(next, false);
     }
   }
+}
+
+function scheduleSpotifyPoll(delay) {
+  clearTimeout(spotifyPollTimer);
+  const nextDelay = delay ?? (document.hidden ? 10000 : state.track.isPlaying ? 3000 : 5000);
+  spotifyPollTimer = setTimeout(async () => {
+    await pollSpotify();
+    scheduleSpotifyPoll();
+  }, nextDelay);
+}
+
+function scheduleTick(delay) {
+  clearTimeout(tickTimer);
+  const nextDelay = delay ?? (document.hidden ? 1000 : state.track.isPlaying ? 250 : 1000);
+  tickTimer = setTimeout(() => {
+    tick();
+    scheduleTick();
+  }, nextDelay);
 }
 
 async function openSettings() {
@@ -491,6 +511,10 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   controlPlayback('playPause');
 });
+document.addEventListener('visibilitychange', () => {
+  scheduleSpotifyPoll(document.hidden ? 10000 : 0);
+  scheduleTick(0);
+});
 elements.settingsForm.addEventListener('submit', async (event) => {
   if (event.submitter?.value !== 'default') return;
   event.preventDefault();
@@ -514,8 +538,8 @@ async function init() {
   setSource('Finding Spotify…', false);
   setEmpty('Waiting for Spotify', 'Open Spotify on this Mac. Bol will follow the current track automatically.');
   await pollSpotify();
-  setInterval(pollSpotify, 2000);
-  setInterval(tick, 200);
+  scheduleSpotifyPoll();
+  scheduleTick(0);
 }
 
 init();

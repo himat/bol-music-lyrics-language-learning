@@ -1,14 +1,47 @@
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { getSpotifyState, controlSpotify, seekSpotify } = require('./src/spotify');
 const { fetchLyrics } = require('./src/lyrics');
 const { createCoach } = require('./src/coach');
+const { analysisCacheKey, readAnalysisCache, writeAnalysisCache } = require('./src/analysis-cache');
 
 let mainWindow;
 
+// Keep the concise macOS menu-bar name while the packaged .app uses the
+// descriptive productName configured for Finder.
+app.setName('Bol');
+
+function installApplicationMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'Bol',
+      submenu: [
+        { role: 'about', label: 'About Bol' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide', label: 'Hide Bol' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Quit Bol' },
+      ],
+    },
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    { role: 'help' },
+  ]));
+}
+
 function configPath() {
   return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function analysisCachePath() {
+  return path.join(app.getPath('userData'), 'analysis-cache');
 }
 
 async function loadSettings() {
@@ -52,6 +85,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: true,
     },
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -59,15 +94,21 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  installApplicationMenu();
   ipcMain.handle('spotify:state', () => getSpotifyState());
   ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
   ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
   ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
   ipcMain.handle('coach:analyze', async (_event, payload) => {
     const settings = await loadSettings();
+    const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
+    const cached = await readAnalysisCache(analysisCachePath(), key);
+    if (cached) return cached;
     const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('Add an OpenAI API key in Settings to translate and explain this song.');
-    return createCoach({ ...settings, apiKey }).analyze(payload);
+    const analysis = await createCoach({ ...settings, apiKey }).analyze(payload);
+    await writeAnalysisCache(analysisCachePath(), key, analysis);
+    return analysis;
   });
   ipcMain.handle('settings:load', loadSettings);
   ipcMain.handle('settings:save', (_event, settings) => saveSettings(settings));

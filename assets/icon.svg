@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="lime" x1="0" y1="0" x2="0.86" y2="1">
+      <stop offset="0" stop-color="#e8ff9c"/>
+      <stop offset="0.5" stop-color="#d9ff73"/>
+      <stop offset="1" stop-color="#bce94e"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.48"/>
+      <stop offset="0.22" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#102018" stop-opacity="0.18"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="34" stdDeviation="38" flood-color="#071008" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="92" y="76" width="840" height="840" rx="205" fill="url(#lime)"/>
+    <rect x="102" y="86" width="820" height="820" rx="195" fill="none" stroke="url(#edge)" stroke-width="20"/>
+  </g>
+
+  <text x="512" y="612"
+        fill="#11130f"
+        font-family="Kohinoor Devanagari, Devanagari Sangam MN, sans-serif"
+        font-size="302"
+        font-weight="700"
+        text-anchor="middle">बोल</text>
+</svg>

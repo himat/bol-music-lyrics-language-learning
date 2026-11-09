@@ -18,6 +18,7 @@
   "build": {
     "appId": "com.hima.bol",
     "productName": "Bol",
+    "electronLanguages": ["en"],
     "files": [
       "main.js",
       "preload.js",
@@ -26,16 +27,16 @@
       "package.json"
     ],
     "mac": {
+      "icon": "assets/icon.icns",
       "category": "public.app-category.education",
-      "target": ["dir", "dmg"],
+      "target": ["dir"],
       "hardenedRuntime": false,
       "extendInfo": {
+        "CFBundleName": "Bol",
+        "CFBundleDisplayName": "Bol - musical language learning",
         "NSAppleEventsUsageDescription": "Bol reads the current song and playback position from Spotify to synchronize lyrics.",
         "NSMicrophoneUsageDescription": "Bol may use audio recognition as an optional fallback when playback metadata is unavailable."
       }
-    },
-    "dmg": {
-      "title": "Bol — Language learning through music"
     }
   }
 }
