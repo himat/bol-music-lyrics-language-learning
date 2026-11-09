@@ -6,6 +6,8 @@ test('maps only supported Spotify transport controls', () => {
   assert.equal(spotifyControlScript('previous'), 'tell application "Spotify" to previous track');
   assert.equal(spotifyControlScript('playPause'), 'tell application "Spotify" to playpause');
   assert.equal(spotifyControlScript('next'), 'tell application "Spotify" to next track');
+  assert.equal(spotifyControlScript('repeatOff'), 'tell application "Spotify" to set repeating to false');
+  assert.equal(spotifyControlScript('repeatContext'), 'tell application "Spotify" to set repeating to true');
   assert.throws(() => spotifyControlScript('deletePlaylist'), /Unknown Spotify control/);
 });
 

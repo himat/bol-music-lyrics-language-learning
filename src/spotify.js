@@ -10,7 +10,7 @@ end tell
 if spotifyIsRunning is false then return "not_running"
 tell application "Spotify"
   set t to current track
-  set parts to {player state as text, name of t, artist of t, album of t, duration of t as text, player position as text, artwork url of t, spotify url of t}
+  set parts to {player state as text, name of t, artist of t, album of t, duration of t as text, player position as text, artwork url of t, spotify url of t, repeating as text}
   set AppleScript's text item delimiters to ASCII character 31
   return parts as text
 end tell
@@ -24,7 +24,7 @@ async function getSpotifyState() {
     const { stdout } = await execFileAsync('/usr/bin/osascript', ['-e', script], { timeout: 3000 });
     const value = stdout.trim();
     if (value === 'not_running') return { available: false, reason: 'Open Spotify and play a song.' };
-    const [state, title, artist, album, duration, position, artworkUrl, spotifyUrl] = value.split(separator);
+    const [state, title, artist, album, duration, position, artworkUrl, spotifyUrl, repeating] = value.split(separator);
     return {
       available: true,
       isPlaying: state === 'playing',
@@ -36,6 +36,7 @@ async function getSpotifyState() {
       positionMs: Math.round((Number(position) || 0) * 1000),
       artworkUrl,
       spotifyUrl,
+      repeatMode: repeating === 'true' ? 'context' : 'off',
       observedAt: Date.now(),
     };
   } catch (error) {
@@ -57,6 +58,8 @@ function spotifyControlScript(action) {
     previous: 'previous track',
     playPause: 'playpause',
     next: 'next track',
+    repeatOff: 'set repeating to false',
+    repeatContext: 'set repeating to true',
   };
   if (!commands[action]) throw new Error('Unknown Spotify control.');
   return `tell application "Spotify" to ${commands[action]}`;

@@ -2,7 +2,7 @@ const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
   'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachPanel','coachBody',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
-  'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton',
+  'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton','repeatButton',
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = {
@@ -12,6 +12,7 @@ const state = {
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
+  repeatMode: 'off', repeatRestarting: false,
 };
 let spotifyPollTimer = null;
 let tickTimer = null;
@@ -65,12 +66,26 @@ function renderTrack() {
     ? '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
     : '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7V5z"/></svg>';
   elements.playPauseButton.setAttribute('aria-label', track.isPlaying ? 'Pause' : 'Play');
-  for (const button of [elements.previousButton, elements.playPauseButton, elements.nextButton]) button.disabled = state.mode !== 'spotify';
+  for (const button of [elements.previousButton, elements.playPauseButton, elements.nextButton, elements.repeatButton]) button.disabled = state.mode !== 'spotify';
+  renderRepeatControl();
   elements.spotifyButton.hidden = !track.spotifyUrl;
   elements.coverArt.classList.toggle('fallback-cover', !track.artworkUrl);
   elements.coverArt.style.backgroundImage = track.artworkUrl ? `url("${track.artworkUrl.replaceAll('"', '%22')}")` : '';
   elements.coverArt.innerHTML = track.artworkUrl ? '' : '<span>बोल</span>';
   renderTrackLanguages();
+}
+
+function renderRepeatControl() {
+  const labels = {
+    off: 'Repeat off',
+    context: 'Repeat playlist or album',
+    track: 'Repeat this track',
+  };
+  const label = labels[state.repeatMode] || labels.off;
+  elements.repeatButton.classList.toggle('active', state.repeatMode !== 'off');
+  elements.repeatButton.classList.toggle('one', state.repeatMode === 'track');
+  elements.repeatButton.setAttribute('aria-label', label);
+  elements.repeatButton.title = `${label} · click for next mode`;
 }
 
 function renderTrackLanguages() {
@@ -401,7 +416,9 @@ async function pollSpotify() {
     state.positionObservedAt = spotify.observedAt;
     state.track.isPlaying = spotify.isPlaying;
     state.track.positionMs = spotify.positionMs;
+    if (state.repeatMode !== 'track') state.repeatMode = spotify.repeatMode || 'off';
     elements.playingBars.classList.toggle('paused', !spotify.isPlaying);
+    renderRepeatControl();
     if (key !== state.lastRealTrackKey) {
       state.lastRealTrackKey = key;
       loadTrack(spotify);
@@ -410,6 +427,29 @@ async function pollSpotify() {
     setSource('Spotify connection unavailable', false);
   } finally {
     state.spotifyPollInFlight = false;
+  }
+}
+
+async function cycleRepeatMode() {
+  if (state.mode !== 'spotify') return;
+  const previous = state.repeatMode;
+  const modes = { off: 'context', context: 'track', track: 'off' };
+  state.repeatMode = modes[previous] || 'off';
+  state.repeatRestarting = false;
+  renderRepeatControl();
+  try {
+    await window.bol.spotifyControl(state.repeatMode === 'context' ? 'repeatContext' : 'repeatOff');
+    const messages = {
+      off: 'Repeat off',
+      context: 'Repeating this playlist or album',
+      track: 'Repeating this track while Bol is open',
+    };
+    showToast(messages[state.repeatMode]);
+    scheduleSpotifyPoll(250);
+  } catch (error) {
+    state.repeatMode = previous;
+    renderRepeatControl();
+    showToast(String(error.message || 'Could not change repeat mode.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
   }
 }
 
@@ -458,6 +498,21 @@ function tick() {
   elements.elapsedTime.textContent = formatTime(position);
   const progress = state.track.durationMs ? Math.min(100, position / state.track.durationMs * 100) : 0;
   elements.progressFill.style.width = `${progress}%`;
+  if (state.repeatMode === 'track'
+    && state.track.isPlaying
+    && state.track.durationMs > 0
+    && state.track.durationMs - position <= 350
+    && position > 1000
+    && !state.repeatRestarting) {
+    state.repeatRestarting = true;
+    state.positionBase = 0;
+    state.positionObservedAt = Date.now();
+    state.track.positionMs = 0;
+    window.bol.spotifySeek(0, true)
+      .then(() => scheduleSpotifyPoll(250))
+      .catch((error) => showToast(String(error.message || 'Could not repeat this track.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '')))
+      .finally(() => { state.repeatRestarting = false; });
+  }
   if (!state.lyrics?.synced) return;
   let next = -1;
   for (const line of state.lyrics.lines) {
@@ -489,7 +544,7 @@ function scheduleSpotifyPoll(delay) {
 
 function scheduleTick(delay) {
   clearTimeout(tickTimer);
-  const nextDelay = delay ?? (document.hidden ? 1000 : state.track.isPlaying ? 250 : 1000);
+  const nextDelay = delay ?? (state.repeatMode === 'track' && state.track.isPlaying ? 200 : document.hidden ? 1000 : state.track.isPlaying ? 250 : 1000);
   tickTimer = setTimeout(() => {
     tick();
     scheduleTick();
@@ -513,6 +568,7 @@ elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false)
 elements.previousButton.addEventListener('click', () => controlPlayback('previous'));
 elements.playPauseButton.addEventListener('click', () => controlPlayback('playPause'));
 elements.nextButton.addEventListener('click', () => controlPlayback('next'));
+elements.repeatButton.addEventListener('click', cycleRepeatMode);
 elements.currentLineDock.addEventListener('click', scrollToActive);
 elements.lyricsScroll.addEventListener('mouseleave', scheduleCoachHoverExit);
 elements.lyricsScroll.addEventListener('scroll', () => {

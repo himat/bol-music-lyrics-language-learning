@@ -5,6 +5,7 @@ Bol is a macOS desktop app for learning natural, everyday language from songs pl
 ## What works
 
 - Reads the current song and live playback position from the Spotify desktop app (no Spotify developer account needed).
+- Controls Spotify playback, including repeat off, repeat playlist/album, and repeat-one while Bol is open.
 - Fetches synchronized lyrics from LRCLIB and follows the playing line.
 - Shows line-by-line English translations and word-level romanization/meaning hovers.
 - Clicks any synchronized lyric to play Spotify from that timestamp, including when paused.
