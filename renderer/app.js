@@ -507,6 +507,17 @@ function scrollToActive() {
   setTimeout(() => { state.programmaticScroll = false; }, 650);
 }
 
+function resumeLiveLine() {
+  if (state.activeIndex < 0) return;
+  cancelCoachHoverExit();
+  clearTimeout(state.browseTimer);
+  state.hoveredIndex = null;
+  state.userBrowsing = false;
+  updateRows();
+  selectCoachLine(state.activeIndex, false);
+  scrollToActive();
+}
+
 function updateRows() {
   for (const row of elements.lyricsScroll.querySelectorAll('.lyric-row')) {
     const index = Number(row.dataset.index);
@@ -839,6 +850,11 @@ elements.lyricsScroll.addEventListener('scroll', () => {
   state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
 }, { passive: true });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !elements.settingsDialog.open && !elements.flashcardsDialog.open) {
+    event.preventDefault();
+    resumeLiveLine();
+    return;
+  }
   if (elements.flashcardsDialog.open && state.flashcardMode === 'study' && !event.repeat) {
     const target = event.target;
     const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
