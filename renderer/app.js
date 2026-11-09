@@ -28,7 +28,7 @@ const demoAnalysis = {
 
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
-  'durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
+  'trackLanguages','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
   'analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','demoButton','homeButton',
 ].map((id) => [id, document.getElementById(id)]));
@@ -69,6 +69,32 @@ function renderTrack() {
   elements.coverArt.classList.toggle('demo-cover', !track.artworkUrl);
   elements.coverArt.style.backgroundImage = track.artworkUrl ? `url("${track.artworkUrl.replaceAll('"', '%22')}")` : '';
   elements.coverArt.innerHTML = track.artworkUrl ? '' : '<span>बोल</span>';
+  renderTrackLanguages();
+}
+
+function renderTrackLanguages() {
+  const analyzed = state.analysis?.lines || [];
+  const counts = new Map();
+  for (const line of analyzed) {
+    const language = String(line.language || '').trim();
+    if (!language) continue;
+    const key = language.toLocaleLowerCase();
+    const existing = counts.get(key) || { language, count: 0, fit: line.targetLanguageFit || 'unclear' };
+    existing.count += 1;
+    if (line.targetLanguageFit === 'target') existing.fit = 'target';
+    else if (line.targetLanguageFit === 'mixed' && existing.fit !== 'target') existing.fit = 'mixed';
+    counts.set(key, existing);
+  }
+  const languages = [...counts.values()].sort((a, b) => b.count - a.count);
+  elements.trackLanguages.innerHTML = '';
+  elements.trackLanguages.hidden = languages.length === 0;
+  for (const item of languages) {
+    const pill = document.createElement('span');
+    pill.className = `track-language-pill ${item.fit}`;
+    const percentage = languages.length > 1 ? ` <em>${Math.round(item.count / analyzed.length * 100)}%</em>` : '';
+    pill.innerHTML = `${escapeHTML(item.language)}${percentage}`;
+    elements.trackLanguages.appendChild(pill);
+  }
 }
 
 function analysisFor(index) { return state.analysis?.lines?.find((line) => line.index === index); }
@@ -187,6 +213,7 @@ async function analyzeCurrentSong(automatic = false) {
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   try {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
+    renderTrackLanguages();
     renderLyrics();
     selectCoachLine(Math.max(0, state.activeIndex), false);
     elements.analyzeButton.hidden = true;

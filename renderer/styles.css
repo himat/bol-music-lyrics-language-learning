@@ -49,6 +49,12 @@ button { color: inherit; }
 .eyebrow { color: var(--lime); font-size: 10px; letter-spacing: .14em; font-weight: 600; }
 .track-copy h1 { margin: 3px 0 1px; font: 600 27px/1.1 Georgia, serif; letter-spacing: -.02em; }
 .track-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+.track-languages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.track-language-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; color: #b8b7b0; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 7px; font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.track-language-pill.target { color: var(--lime); border-color: rgba(217,255,115,.24); }
+.track-language-pill.other { color: var(--coral); border-color: rgba(255,134,111,.26); }
+.track-language-pill.mixed { color: var(--lavender); border-color: rgba(169,156,255,.28); }
+.track-language-pill em { color: #77766f; font-style: normal; font-weight: 500; }
 .progress-row { display: grid; grid-template-columns: 30px minmax(80px, 330px) 34px; gap: 9px; align-items: center; margin-top: 13px; color: #74746e; font-size: 10px; font-variant-numeric: tabular-nums; }
 .progress-track { height: 3px; border-radius: 99px; background: #363632; overflow: hidden; }
 .progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--lime); transition: width .2s linear; }
@@ -56,9 +62,9 @@ button { color: inherit; }
 .spotify-button:hover { background: rgba(255,255,255,.05); }
 .spotify-button svg { width: 16px; fill: #1ed760; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 335px; gap: 0; margin-top: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.24); }
-.lyrics-panel { min-width: 0; position: relative; display: grid; grid-template-rows: 42px 1fr; }
+.lyrics-panel { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; }
 .column-headings { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 0 28px; align-items: center; color: #74736e; font-size: 9px; letter-spacing: .14em; border-bottom: 1px solid var(--line); }
-.lyrics-scroll { overflow-y: auto; padding: calc(25vh - 70px) 18px; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: #41413c transparent; }
+.lyrics-scroll { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: calc(25vh - 70px) 18px; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: #41413c transparent; }
 .lyric-row { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 14px 10px; border-radius: 13px; color: #85857f; opacity: .6; transition: opacity .22s, color .22s, background .22s, transform .22s; cursor: default; }
 .lyric-row::before { content: ''; position: absolute; left: -18px; top: 12px; bottom: 12px; width: 2px; border-radius: 9px; background: transparent; }
 .lyric-row:hover, .lyric-row.hovered { color: #d8d6ce; opacity: 1; background: rgba(255,255,255,.035); }
