@@ -5,8 +5,10 @@ const { getSpotifyState, controlSpotify, seekSpotify } = require('./src/spotify'
 const { fetchLyrics } = require('./src/lyrics');
 const { createCoach } = require('./src/coach');
 const { analysisCacheKey, readAnalysisCache, writeAnalysisCache } = require('./src/analysis-cache');
+const { readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard } = require('./src/flashcards');
 
 let mainWindow;
+let flashcardWriteQueue = Promise.resolve();
 
 // Keep the concise macOS menu-bar name while the packaged .app uses the
 // descriptive productName configured for Finder.
@@ -42,6 +44,16 @@ function configPath() {
 
 function analysisCachePath() {
   return path.join(app.getPath('userData'), 'analysis-cache');
+}
+
+function flashcardsPath() {
+  return path.join(app.getPath('userData'), 'flashcards.json');
+}
+
+function serializeFlashcardWrite(operation) {
+  const result = flashcardWriteQueue.then(operation, operation);
+  flashcardWriteQueue = result.catch(() => {});
+  return result;
 }
 
 async function loadSettings() {
@@ -110,6 +122,17 @@ app.whenReady().then(() => {
     await writeAnalysisCache(analysisCachePath(), key, analysis);
     return analysis;
   });
+  ipcMain.handle('flashcards:list', async () => (await readFlashcards(flashcardsPath())).cards);
+  ipcMain.handle('flashcards:save', (_event, payload) => serializeFlashcardWrite(() => upsertFlashcard(flashcardsPath(), payload)));
+  ipcMain.handle('flashcards:examples', async (_event, payload) => {
+    const settings = await loadSettings();
+    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to generate conversation examples.');
+    const generated = await createCoach({ ...settings, apiKey }).generateFlashcardExamples(payload);
+    return serializeFlashcardWrite(() => upsertFlashcard(flashcardsPath(), { ...payload, nativeScript: generated.nativeScript, examples: generated.examples }));
+  });
+  ipcMain.handle('flashcards:delete', (_event, id) => serializeFlashcardWrite(() => deleteFlashcard(flashcardsPath(), id)));
+  ipcMain.handle('flashcards:review', (_event, id, remembered) => serializeFlashcardWrite(() => reviewFlashcard(flashcardsPath(), id, remembered)));
   ipcMain.handle('settings:load', loadSettings);
   ipcMain.handle('settings:save', (_event, settings) => saveSettings(settings));
   ipcMain.handle('external:open', (_event, url) => shell.openExternal(url));

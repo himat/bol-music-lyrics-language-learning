@@ -20,6 +20,10 @@
           <span id="sourceLabel">Finding Spotify…</span>
         </div>
         <div class="top-actions">
+          <button class="cards-button" id="flashcardsButton" aria-label="Open saved words">
+            <svg viewBox="0 0 24 24"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h7M8 12h7"/></svg>
+            <span>Words</span><strong id="flashcardCount">0</strong>
+          </button>
           <span class="language-label" id="languageLabel">Learning Hindi</span>
           <button class="icon-button" id="settingsButton" aria-label="Settings">
             <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.64 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.54 1.7 1.7 0 0 0 10.03 3H10V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.03H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
@@ -109,6 +113,24 @@
     </main>
 
     <div class="toast" id="toast" role="status"></div>
+
+    <dialog class="flashcards-dialog" id="flashcardsDialog">
+      <div class="flashcards-shell">
+        <div class="dialog-heading flashcards-heading">
+          <div><span class="eyebrow">YOUR WORDS</span><h2>Learn what you saved</h2></div>
+          <button class="close-button" id="flashcardsCloseButton" aria-label="Close">×</button>
+        </div>
+        <div class="flashcards-tabs" role="tablist">
+          <button class="active" id="browseFlashcardsTab" role="tab">Browse</button>
+          <button id="studyFlashcardsTab" role="tab">Test yourself</button>
+        </div>
+        <section class="flashcards-view" id="flashcardsBrowseView">
+          <div class="flashcards-list" id="flashcardsList"></div>
+          <div class="flashcard-detail" id="flashcardDetail"></div>
+        </section>
+        <section class="study-view" id="flashcardsStudyView" hidden></section>
+      </div>
+    </dialog>
 
     <dialog class="settings-dialog" id="settingsDialog">
       <form method="dialog" id="settingsForm">

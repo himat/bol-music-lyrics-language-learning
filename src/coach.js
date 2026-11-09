@@ -63,6 +63,30 @@ const glossCorrectionSchema = {
   },
 };
 
+const flashcardExamplesSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['nativeScript', 'examples'],
+  properties: {
+    nativeScript: { type: 'string' },
+    examples: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['text', 'romanization', 'translation'],
+        properties: {
+          text: { type: 'string' },
+          romanization: { type: 'string' },
+          translation: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
 async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens }) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -124,6 +148,24 @@ function createCoach({ apiKey, model, targetLanguage }) {
           return { ...result, index };
         }),
       };
+    },
+    async generateFlashcardExamples(card) {
+      return requestStructured({
+        apiKey,
+        model,
+        instructions: `You are creating a flashcard for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. Return nativeScript as the supplied word written in the language's normal native script (Devanagari for Hindi), even when the supplied lyric writes it in Latin letters; if it is already in its native script, copy it unchanged. Write exactly three short, natural, distinct conversational examples that teach the supplied word in contexts someone would genuinely say. Avoid song lyrics, poetry, archaic phrasing, and contrived repetition. Each example must contain the word or its grammatically appropriate inflected form. Use the supplied contextual meaning, and preserve the supplied language. Return each example in its native script, a readable Latin-script romanization, and concise natural English. Do not add explanations.`,
+        input: {
+          word: card.word,
+          romanization: card.romanization,
+          contextualMeaning: card.meaning,
+          language: card.language,
+          sourcePhrase: card.context?.text || '',
+          sourceTranslation: card.context?.translation || '',
+        },
+        name: 'flashcard_conversation_examples',
+        schema: flashcardExamplesSchema,
+        maxOutputTokens: 1200,
+      });
     },
   };
 }
@@ -198,4 +240,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };
+module.exports = { createCoach, analysisSchema, flashcardExamplesSchema, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };

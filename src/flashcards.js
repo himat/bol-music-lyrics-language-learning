@@ -1,0 +1,110 @@
+const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+
+function clean(value) {
+  return String(value || '').trim();
+}
+
+function normalizeWord(value) {
+  return clean(value).normalize('NFKC').toLocaleLowerCase();
+}
+
+function flashcardId(language, word) {
+  return crypto.createHash('sha256').update(`${normalizeWord(language)}\0${normalizeWord(word)}`).digest('hex').slice(0, 20);
+}
+
+function emptyStore() {
+  return { version: 1, cards: [] };
+}
+
+async function readFlashcards(filePath) {
+  try {
+    const value = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    return value?.version === 1 && Array.isArray(value.cards) ? value : emptyStore();
+  } catch {
+    return emptyStore();
+  }
+}
+
+async function writeFlashcards(filePath, store) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.tmp`;
+  await fs.writeFile(temporaryPath, JSON.stringify(store, null, 2));
+  await fs.rename(temporaryPath, filePath);
+}
+
+function contextKey(context) {
+  return [context.text, context.translation, context.songTitle, context.artist].map(normalizeWord).join('\0');
+}
+
+function sanitizeContext(context = {}) {
+  return {
+    text: clean(context.text),
+    translation: clean(context.translation),
+    songTitle: clean(context.songTitle),
+    artist: clean(context.artist),
+    album: clean(context.album),
+    savedAt: context.savedAt || new Date().toISOString(),
+  };
+}
+
+function sanitizeExamples(examples = []) {
+  return examples.slice(0, 3).map((example) => ({
+    text: clean(example.text),
+    romanization: clean(example.romanization),
+    translation: clean(example.translation),
+  })).filter((example) => example.text && example.translation);
+}
+
+async function upsertFlashcard(filePath, input) {
+  const store = await readFlashcards(filePath);
+  const id = flashcardId(input.language, input.word);
+  const existingIndex = store.cards.findIndex((card) => card.id === id);
+  const existing = existingIndex >= 0 ? store.cards[existingIndex] : null;
+  const now = new Date().toISOString();
+  const incomingContext = sanitizeContext(input.context);
+  const contexts = [...(existing?.contexts || [])];
+  if (incomingContext.text && !contexts.some((context) => contextKey(context) === contextKey(incomingContext))) contexts.push(incomingContext);
+  const incomingExamples = sanitizeExamples(input.examples);
+  const card = {
+    id,
+    word: clean(input.word) || existing?.word || '',
+    nativeScript: clean(input.nativeScript) || existing?.nativeScript || '',
+    romanization: clean(input.romanization) || existing?.romanization || '',
+    meaning: clean(input.meaning) || existing?.meaning || '',
+    language: clean(input.language) || existing?.language || 'Unknown',
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    contexts,
+    examples: incomingExamples.length ? incomingExamples : (existing?.examples || []),
+    study: existing?.study || { seen: 0, correct: 0, again: 0, lastReviewedAt: null },
+  };
+  if (existingIndex >= 0) store.cards[existingIndex] = card;
+  else store.cards.unshift(card);
+  await writeFlashcards(filePath, store);
+  return { card, created: existingIndex < 0, cards: store.cards };
+}
+
+async function deleteFlashcard(filePath, id) {
+  const store = await readFlashcards(filePath);
+  store.cards = store.cards.filter((card) => card.id !== id);
+  await writeFlashcards(filePath, store);
+  return store.cards;
+}
+
+async function reviewFlashcard(filePath, id, remembered) {
+  const store = await readFlashcards(filePath);
+  const card = store.cards.find((item) => item.id === id);
+  if (!card) throw new Error('Flashcard not found.');
+  card.study = card.study || { seen: 0, correct: 0, again: 0, lastReviewedAt: null };
+  card.study.seen += 1;
+  if (remembered) card.study.correct += 1;
+  else card.study.again += 1;
+  card.study.lastReviewedAt = new Date().toISOString();
+  card.updatedAt = card.study.lastReviewedAt;
+  await writeFlashcards(filePath, store);
+  return card;
+}
+
+module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples };
