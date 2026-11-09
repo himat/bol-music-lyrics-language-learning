@@ -414,13 +414,15 @@ async function seekToLine(line) {
   state.positionBase = positionMs;
   state.positionObservedAt = Date.now();
   state.track.positionMs = positionMs;
+  state.track.isPlaying = true;
   state.activeIndex = line.index;
   state.userBrowsing = false;
   updateRows();
   renderCurrentLineDock();
   selectCoachLine(line.index, false);
+  renderTrack();
   try {
-    await window.bol.spotifySeek(positionMs);
+    await window.bol.spotifySeek(positionMs, true);
     setTimeout(pollSpotify, 250);
   } catch (error) {
     showToast(String(error.message || 'Could not jump to that lyric.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));

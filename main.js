@@ -61,7 +61,7 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle('spotify:state', () => getSpotifyState());
   ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
-  ipcMain.handle('spotify:seek', (_event, positionMs) => seekSpotify(positionMs));
+  ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
   ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
   ipcMain.handle('coach:analyze', async (_event, payload) => {
     const settings = await loadSettings();

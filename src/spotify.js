@@ -68,15 +68,18 @@ async function controlSpotify(action) {
   return getSpotifyState();
 }
 
-function spotifySeekScript(positionMs) {
+function spotifySeekScript(positionMs, shouldPlay = false) {
   const milliseconds = Number(positionMs);
   if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new Error('Invalid Spotify seek position.');
-  return `tell application "Spotify" to set player position to ${milliseconds / 1000}`;
+  const seek = `set player position to ${milliseconds / 1000}`;
+  return shouldPlay
+    ? `tell application "Spotify"\n  ${seek}\n  if player state is not playing then playpause\nend tell`
+    : `tell application "Spotify" to ${seek}`;
 }
 
-async function seekSpotify(positionMs) {
+async function seekSpotify(positionMs, shouldPlay = false) {
   if (process.platform !== 'darwin') throw new Error('Spotify seeking currently requires macOS.');
-  await execFileAsync('/usr/bin/osascript', ['-e', spotifySeekScript(positionMs)], { timeout: 3000 });
+  await execFileAsync('/usr/bin/osascript', ['-e', spotifySeekScript(positionMs, shouldPlay)], { timeout: 3000 });
   return getSpotifyState();
 }
 
