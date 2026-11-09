@@ -172,13 +172,12 @@ function glossedWordsHTML(text, analysis, className) {
   return holder.innerHTML;
 }
 
-function keepCoachGlossInBounds(word) {
-  const panel = elements.coachBody.getBoundingClientRect();
-  const anchor = word.getBoundingClientRect();
-  const tooltipWidth = Math.min(210, Math.max(120, panel.width - 16));
-  const preferredLeft = anchor.left + anchor.width / 2 - tooltipWidth / 2;
-  const left = Math.min(Math.max(preferredLeft, panel.left + 8), panel.right - tooltipWidth - 8);
-  word.style.setProperty('--coach-gloss-left', `${left - anchor.left}px`);
+function positionGlossAbovePointer(word, event) {
+  const maxWidth = word.classList.contains('coach-word') ? 210 : 190;
+  const horizontalMargin = maxWidth / 2 + 12;
+  const x = Math.min(Math.max(event.clientX, horizontalMargin), window.innerWidth - horizontalMargin);
+  word.style.setProperty('--gloss-x', `${x}px`);
+  word.style.setProperty('--gloss-y', `${Math.max(54, event.clientY - 10)}px`);
 }
 
 function isSavedWord(language, word) {
@@ -252,7 +251,6 @@ function attachCoachWordActions(container, context) {
     word.dataset.language = context.language || state.settings.targetLanguage;
     word.setAttribute('role', 'button');
     word.tabIndex = 0;
-    word.addEventListener('mouseenter', () => keepCoachGlossInBounds(word));
     word.addEventListener('click', (event) => {
       event.stopPropagation();
       saveCoachWord(word, context);
@@ -802,6 +800,10 @@ document.addEventListener('visibilitychange', () => {
 });
 elements.coachPanel.addEventListener('mouseenter', cancelCoachHoverExit);
 elements.coachPanel.addEventListener('mouseleave', scheduleCoachHoverExit);
+document.addEventListener('pointermove', (event) => {
+  const word = event.target.closest?.('.coach-word, .lyric-word');
+  if (word) positionGlossAbovePointer(word, event);
+});
 elements.settingsForm.addEventListener('submit', async (event) => {
   if (event.submitter?.value !== 'default') return;
   event.preventDefault();
