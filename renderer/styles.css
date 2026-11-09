@@ -40,7 +40,7 @@ button { color: inherit; }
 .now-playing { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 22px 18px 20px; border-bottom: 1px solid var(--line); }
 .cover-shell { position: relative; width: 92px; height: 92px; }
 .cover-art { width: 92px; height: 92px; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 14px 34px rgba(0,0,0,.35); overflow: hidden; }
-.demo-cover { display: grid; place-items: center; color: #211917; background: radial-gradient(circle at 70% 20%, #fff5c4 0 11%, transparent 12%), linear-gradient(140deg, #ffb379, #ff766e 60%, #6746aa); font: 600 34px Georgia, serif; }
+.fallback-cover { display: grid; place-items: center; color: #211917; background: radial-gradient(circle at 70% 20%, #fff5c4 0 11%, transparent 12%), linear-gradient(140deg, #ffb379, #ff766e 60%, #6746aa); font: 600 34px Georgia, serif; }
 .playing-bars { position: absolute; right: -5px; bottom: -5px; display: flex; align-items: flex-end; gap: 2px; width: 25px; height: 25px; padding: 7px 6px; background: var(--lime); border: 3px solid #10100f; border-radius: 50%; }
 .playing-bars i { display: block; width: 2px; height: 8px; background: #171713; border-radius: 4px; animation: bounce .8s ease-in-out infinite alternate; }
 .playing-bars i:nth-child(2) { height: 5px; animation-delay: -.3s; }
@@ -64,7 +64,6 @@ button { color: inherit; }
 .sync-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; color: var(--lime); border: 1px solid rgba(217,255,115,.24); border-radius: 7px; font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .sync-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sync-status.unsynced { color: var(--coral); border-color: rgba(255,134,111,.28); }
-.sync-status.demo { color: var(--lavender); border-color: rgba(169,156,255,.28); }
 .transport-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
 .transport-controls { display: flex; align-items: center; gap: 6px; }
 .transport-controls button { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; color: #171713; background: var(--lime); border: 0; border-radius: 50%; cursor: pointer; transition: background .15s, transform .15s; }

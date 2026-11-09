@@ -1,41 +1,14 @@
-const demoTrack = {
-  available: true, demo: true, isPlaying: true, state: 'playing', title: 'Aaj Ka Safar',
-  artist: 'Bol demo · spot the Punjabi line', album: 'Your first conversation', durationMs: 25000,
-  positionMs: 0, observedAt: Date.now(), artworkUrl: '', spotifyUrl: '',
-};
-
-const demoLyrics = {
-  synced: true,
-  lines: [
-    { index: 0, timeMs: 0, text: 'आज मौसम अच्छा है' },
-    { index: 1, timeMs: 5000, text: 'चलो, चाय पीते हैं' },
-    { index: 2, timeMs: 10000, text: 'तुम्हारा दिन कैसा था?' },
-    { index: 3, timeMs: 15000, text: 'बस, ठीक था—थोड़ा लंबा' },
-    { index: 4, timeMs: 20000, text: 'ਕੱਲ੍ਹ ਫਿਰ ਮਿਲਾਂਗੇ' },
-  ],
-};
-
-const demoAnalysis = {
-  language: 'Hindi and Punjabi', summary: 'Most lines are natural Hindi; the final line is Punjabi and is marked so you do not learn it as Hindi.',
-  lines: [
-    { index: 0, translation: 'The weather is nice today.', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'A straightforward, everyday observation.', dailyAlternative: '', wordGlosses: [{ word: 'आज', meaning: 'today' }, { word: 'मौसम', meaning: 'weather' }, { word: 'अच्छा', meaning: 'nice / good' }, { word: 'है', meaning: 'is' }] },
-    { index: 1, translation: 'Come on, let’s have tea.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'चलो is a very common way to suggest doing something together.', dailyAlternative: '', wordGlosses: [{ word: 'चलो', meaning: 'come on / let’s' }, { word: 'चाय', meaning: 'tea' }, { word: 'पीते', meaning: 'drink' }, { word: 'हैं', meaning: 'we do / are' }] },
-    { index: 2, translation: 'How was your day?', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'Natural with friends, family, and colleagues.', dailyAlternative: '', wordGlosses: [{ word: 'तुम्हारा', meaning: 'your' }, { word: 'दिन', meaning: 'day' }, { word: 'कैसा', meaning: 'how / what kind' }, { word: 'था', meaning: 'was' }] },
-    { index: 3, translation: 'It was fine—just a bit long.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'बस softens the answer and can mean “just” or “well.”', dailyAlternative: '', wordGlosses: [{ word: 'बस', meaning: 'just / well' }, { word: 'ठीक', meaning: 'fine / okay' }, { word: 'था', meaning: 'was' }, { word: 'थोड़ा', meaning: 'a little' }, { word: 'लंबा', meaning: 'long' }] },
-    { index: 4, translation: 'We’ll meet again tomorrow.', language: 'Punjabi', targetLanguageFit: 'other', register: 'common', explanation: 'This is natural Punjabi, not Hindi, so do not count it as a Hindi phrase.', dailyAlternative: '', wordGlosses: [{ word: 'ਕੱਲ੍ਹ', meaning: 'tomorrow' }, { word: 'ਫਿਰ', meaning: 'again' }, { word: 'ਮਿਲਾਂਗੇ', meaning: 'we will meet' }] },
-  ],
-};
-
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
   'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
-  'modelInput','apiKeyHelp','demoButton','homeButton','previousButton','playPauseButton','nextButton',
+  'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = {
-  track: demoTrack, lyrics: demoLyrics, analysis: demoAnalysis, activeIndex: -1, hoveredIndex: null,
-  mode: 'demo', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
+  track: { isPlaying: false, title: 'Waiting for Spotify', artist: 'Open Spotify to begin', album: '', durationMs: 0, positionMs: 0, observedAt: Date.now(), artworkUrl: '', spotifyUrl: '' },
+  lyrics: { synced: false, lines: [] }, analysis: null, activeIndex: -1, hoveredIndex: null,
+  mode: 'waiting', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
@@ -82,16 +55,16 @@ function setSource(label, connected) {
 function renderTrack() {
   const track = state.track;
   elements.trackTitle.textContent = track.title;
-  elements.trackArtist.textContent = track.artist + (track.album && !track.demo ? ` · ${track.album}` : '');
+  elements.trackArtist.textContent = track.artist + (track.album ? ` · ${track.album}` : '');
   elements.durationTime.textContent = formatTime(track.durationMs);
   elements.playingBars.classList.toggle('paused', !track.isPlaying);
   elements.playPauseButton.innerHTML = track.isPlaying
     ? '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
     : '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7V5z"/></svg>';
   elements.playPauseButton.setAttribute('aria-label', track.isPlaying ? 'Pause' : 'Play');
-  for (const button of [elements.previousButton, elements.playPauseButton, elements.nextButton]) button.disabled = Boolean(track.demo);
+  for (const button of [elements.previousButton, elements.playPauseButton, elements.nextButton]) button.disabled = state.mode !== 'spotify';
   elements.spotifyButton.hidden = !track.spotifyUrl;
-  elements.coverArt.classList.toggle('demo-cover', !track.artworkUrl);
+  elements.coverArt.classList.toggle('fallback-cover', !track.artworkUrl);
   elements.coverArt.style.backgroundImage = track.artworkUrl ? `url("${track.artworkUrl.replaceAll('"', '%22')}")` : '';
   elements.coverArt.innerHTML = track.artworkUrl ? '' : '<span>बोल</span>';
   renderTrackLanguages();
@@ -178,11 +151,8 @@ function renderLyrics() {
   elements.lyricsScroll.hidden = false;
   elements.lyricsScroll.innerHTML = '';
   elements.syncStatus.hidden = false;
-  elements.syncStatus.textContent = state.track.demo
-    ? 'Demo timing'
-    : state.lyrics.synced ? 'Synced lyrics' : 'Plain lyrics · no timing';
+  elements.syncStatus.textContent = state.lyrics.synced ? 'Synced lyrics' : 'Plain lyrics · no timing';
   elements.syncStatus.classList.toggle('unsynced', !state.lyrics.synced);
-  elements.syncStatus.classList.toggle('demo', Boolean(state.track.demo));
   for (const line of state.lyrics.lines) {
     const analysis = analysisFor(line.index);
     const row = document.createElement('div');
@@ -372,34 +342,14 @@ async function analyzeCurrentSong(automatic = false) {
   }
 }
 
-function useDemo() {
-  state.loadToken += 1;
-  state.lastRealTrackKey = '';
-  state.mode = 'demo';
-  state.track = { ...demoTrack, positionMs: 0, observedAt: Date.now() };
-  state.lyrics = demoLyrics;
-  state.analysis = demoAnalysis;
-  state.isAnalyzing = false;
-  stopAnalysisTimer();
-  elements.languageDetectionStatus.hidden = true;
-  elements.translationStatus.hidden = true;
-  state.positionBase = 0;
-  state.positionObservedAt = Date.now();
-  state.activeIndex = -1;
-  setSource('Demo · Spotify is not playing', false);
-  renderTrack();
-  renderLyrics();
-  elements.analyzeButton.hidden = true;
-  selectCoachLine(0, false);
-}
-
 async function pollSpotify() {
   if (state.spotifyPollInFlight) return;
   state.spotifyPollInFlight = true;
   try {
     const spotify = await window.bol.spotifyState();
     if (!spotify.available) {
-      setSource(state.mode === 'demo' ? 'Demo · Spotify is not playing' : spotify.reason, false);
+      setSource(spotify.reason, false);
+      if (state.mode === 'waiting') setEmpty('Waiting for Spotify', spotify.reason);
       return;
     }
     setSource(spotify.isPlaying ? 'Listening to Spotify' : 'Spotify paused', true);
@@ -462,9 +412,6 @@ function tick() {
       selectCoachLine(next, false);
     }
   }
-  if (state.mode === 'demo' && position >= state.track.durationMs) {
-    state.positionBase = 0; state.positionObservedAt = Date.now();
-  }
 }
 
 async function openSettings() {
@@ -477,8 +424,7 @@ async function openSettings() {
 }
 
 elements.settingsButton.addEventListener('click', openSettings);
-elements.demoButton.addEventListener('click', useDemo);
-elements.homeButton.addEventListener('click', useDemo);
+elements.homeButton.addEventListener('click', pollSpotify);
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
 elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false));
@@ -523,7 +469,9 @@ elements.settingsForm.addEventListener('submit', async (event) => {
 async function init() {
   state.settings = await window.bol.loadSettings();
   elements.languageLabel.textContent = `Learning ${state.settings.targetLanguage || 'Hindi'}`;
-  useDemo();
+  renderTrack();
+  setSource('Finding Spotify…', false);
+  setEmpty('Waiting for Spotify', 'Open Spotify on this Mac. Bol will follow the current track automatically.');
   await pollSpotify();
   setInterval(pollSpotify, 2000);
   setInterval(tick, 200);

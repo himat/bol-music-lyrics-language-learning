@@ -8,7 +8,6 @@ Bol is a macOS desktop app for learning natural, everyday language from songs pl
 - Fetches synchronized lyrics from LRCLIB and follows the playing line.
 - Shows a line-by-line English translation; hovering either side highlights its match.
 - Uses OpenAI Structured Outputs to label phrases as common, casual, formal, poetic, uncommon, or unclear and suggests a daily-speech alternative.
-- Includes a built-in demo, so the interface is usable before Spotify or an API key is configured.
 
 ## Run it
 
