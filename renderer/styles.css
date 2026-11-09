@@ -213,16 +213,16 @@ button { color: inherit; }
 .flashcards-heading { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .flashcards-heading h2 { margin: 5px 0 0; font: 600 25px Georgia, serif; }
 .flashcards-tabs { display: flex; gap: 7px; padding: 14px 0; }
-.flashcards-tabs button { padding: 7px 11px; color: #8c8b84; background: transparent; border: 1px solid var(--line); border-radius: 8px; font-size: 10px; cursor: pointer; }
+.flashcards-tabs button { padding: 8px 13px; color: #8c8b84; background: transparent; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; cursor: pointer; }
 .flashcards-tabs button.active { color: #171713; background: var(--lime); border-color: var(--lime); font-weight: 700; }
 .flashcards-view { min-height: 0; display: grid; grid-template-columns: 280px minmax(0,1fr); border: 1px solid var(--line); border-radius: 15px; overflow: hidden; }
 .flashcards-list { overflow-y: auto; padding: 8px; border-right: 1px solid var(--line); }
 .flashcard-list-item { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 9px; width: 100%; padding: 11px; color: #aaa9a2; text-align: left; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
 .flashcard-list-item:hover, .flashcard-list-item.active { background: rgba(217,255,115,.07); }
 .flashcard-list-item.active { box-shadow: inset 0 0 0 1px rgba(217,255,115,.18); }
-.flashcard-list-item strong { overflow: hidden; color: var(--ink); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
-.flashcard-list-item span { grid-column: 1; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.flashcard-list-item small { grid-column: 2; grid-row: 1 / 3; align-self: center; color: #686761; font-size: 8px; text-transform: uppercase; }
+.flashcard-list-item strong { overflow: hidden; color: var(--ink); font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.flashcard-list-item span { grid-column: 1; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.flashcard-list-item small { grid-column: 2; grid-row: 1 / 3; align-self: center; color: #77766f; font-size: 10px; text-transform: uppercase; }
 .flashcard-detail { overflow-y: auto; padding: 25px 29px; }
 .flashcard-empty { height: 100%; display: grid; place-content: center; justify-items: center; color: #77766f; text-align: center; }
 .flashcard-empty span { color: var(--lime); font-size: 32px; }
@@ -230,18 +230,18 @@ button { color: inherit; }
 .flashcard-empty p { max-width: 330px; margin: 0; font-size: 12px; line-height: 1.5; }
 .flashcard-detail-header { display: flex; justify-content: space-between; gap: 20px; }
 .flashcard-detail h3 { margin: 0; font: 600 34px/1.1 Georgia, serif; }
-.flashcard-romanization { margin: 6px 0 0; color: var(--sky); font-size: 13px; }
-.flashcard-meaning { margin: 5px 0 0; color: #c3c1b9; font-size: 16px; }
+.flashcard-romanization { margin: 7px 0 0; color: var(--sky); font-size: 17px; }
+.flashcard-meaning { margin: 6px 0 0; color: #c3c1b9; font-size: 20px; }
 .delete-card-button { height: fit-content; padding: 7px 9px; color: #8d8c85; background: transparent; border: 1px solid var(--line); border-radius: 8px; font-size: 9px; cursor: pointer; }
 .delete-card-button:hover { color: var(--coral); border-color: rgba(255,134,111,.3); }
 .flashcard-section { margin-top: 22px; }
-.flashcard-section > small { display: block; margin-bottom: 9px; color: #6f6e68; font-size: 9px; letter-spacing: .11em; }
+.flashcard-section > small { display: block; margin-bottom: 10px; color: #85847e; font-size: 11px; letter-spacing: .11em; }
 .context-card, .example-card { padding: 12px 14px; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 11px; }
 .context-card + .context-card, .example-card + .example-card { margin-top: 7px; }
-.context-card p, .example-card p { margin: 0; font-size: 13px; line-height: 1.45; }
-.context-card em, .example-card em { display: block; margin-top: 4px; color: #96958e; font: italic 11px/1.4 Georgia, serif; }
-.context-card small { display: block; margin-top: 7px; color: #66655f; font-size: 9px; }
-.example-card .example-romanization { color: var(--sky); font-size: 10px; font-style: normal; font-family: -apple-system, sans-serif; }
+.context-card p, .example-card p { margin: 0; font-size: 17px; line-height: 1.45; }
+.context-card em, .example-card em { display: block; margin-top: 5px; color: #aaa9a2; font: italic 14px/1.45 Georgia, serif; }
+.context-card small { display: block; margin-top: 8px; color: #77766f; font-size: 12px; }
+.example-card .example-romanization { color: var(--sky); font-size: 14px; font-style: normal; font-family: -apple-system, sans-serif; }
 .retry-examples { padding: 9px 12px; color: #171713; background: var(--lime); border: 0; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer; }
 .study-view { min-height: 0; overflow-y: auto; }
 .study-card { min-height: 390px; display: grid; align-content: center; justify-items: center; padding: 34px; text-align: center; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.02); }
