@@ -1,0 +1,41 @@
+{
+  "name": "bol-language-player",
+  "version": "0.1.0",
+  "description": "Learn everyday language from the music playing in Spotify.",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test",
+    "build": "electron-builder --mac dir",
+    "dist": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^39.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.hima.bol",
+    "productName": "Bol",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "target": ["dir", "dmg"],
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Bol reads the current song and playback position from Spotify to synchronize lyrics.",
+        "NSMicrophoneUsageDescription": "Bol may use audio recognition as an optional fallback when playback metadata is unavailable."
+      }
+    },
+    "dmg": {
+      "title": "Bol — Language learning through music"
+    }
+  }
+}

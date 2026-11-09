@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'" />
+    <title>Bol</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <main class="app-shell">
+      <header class="topbar">
+        <button class="wordmark" id="homeButton" aria-label="Bol home">
+          <span class="logo-mark">ब</span>
+          <span>bol</span>
+        </button>
+        <div class="source-pill" id="sourcePill">
+          <span class="status-dot"></span>
+          <span id="sourceLabel">Finding Spotify…</span>
+        </div>
+        <div class="top-actions">
+          <span class="language-label" id="languageLabel">Learning Hindi</span>
+          <button class="icon-button" id="settingsButton" aria-label="Settings">
+            <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.64 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.54 1.7 1.7 0 0 0 10.03 3H10V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.03H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="now-playing">
+        <div class="cover-shell">
+          <div class="cover-art demo-cover" id="coverArt"><span>बोल</span></div>
+          <span class="playing-bars" id="playingBars"><i></i><i></i><i></i></span>
+        </div>
+        <div class="track-copy">
+          <span class="eyebrow">NOW LEARNING</span>
+          <h1 id="trackTitle">Aaj Ka Safar</h1>
+          <p id="trackArtist">Bol demo · everyday Hindi</p>
+          <div class="progress-row">
+            <span id="elapsedTime">0:00</span>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <span id="durationTime">0:25</span>
+          </div>
+        </div>
+        <button class="spotify-button" id="spotifyButton" hidden>
+          <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.59 14.42a.62.62 0 0 1-.86.2c-2.35-1.44-5.31-1.76-8.79-.96a.63.63 0 1 1-.28-1.22c3.81-.87 7.08-.5 9.72 1.1.3.18.39.58.21.88Zm1.23-2.74a.78.78 0 0 1-1.08.26c-2.7-1.66-6.82-2.14-10.02-1.17a.78.78 0 1 1-.46-1.5c3.66-1.11 8.2-.57 11.3 1.33.37.23.48.71.26 1.08Zm.1-2.85C14.67 8.9 9.33 8.72 6.23 9.66a.94.94 0 0 1-.54-1.8c3.56-1.08 9.46-.86 13.2 1.35a.94.94 0 0 1-.97 1.62Z"/></svg>
+          Open Spotify
+        </button>
+      </section>
+
+      <section class="workspace">
+        <div class="lyrics-panel">
+          <div class="column-headings">
+            <span>LYRICS</span><span>ENGLISH</span>
+          </div>
+          <div class="lyrics-scroll" id="lyricsScroll"></div>
+          <div class="empty-state" id="emptyState" hidden>
+            <div class="empty-glyph">♪</div>
+            <h2 id="emptyTitle">Waiting for a song</h2>
+            <p id="emptyMessage">Open Spotify on this Mac and press play. Bol will follow along automatically.</p>
+            <button class="secondary-button" id="demoButton">Explore the demo</button>
+          </div>
+        </div>
+
+        <aside class="coach-panel">
+          <div class="coach-heading">
+            <div>
+              <span class="eyebrow">DAILY SPEECH COACH</span>
+              <h2>What would people<br />actually say?</h2>
+            </div>
+            <span class="sparkle">✦</span>
+          </div>
+          <div class="coach-body" id="coachBody">
+            <div class="coach-intro">
+              <p>Hover a lyric to see whether it belongs in a real conversation.</p>
+              <div class="legend">
+                <span><i class="common"></i>Natural daily speech</span>
+                <span><i class="poetic"></i>Songlike or poetic</span>
+                <span><i class="formal"></i>Formal or uncommon</span>
+              </div>
+            </div>
+          </div>
+          <button class="analyze-button" id="analyzeButton" hidden>
+            <span>✦</span> Analyze this song
+          </button>
+          <div class="privacy-note">Analysis runs once per song · API key stays encrypted on this Mac</div>
+        </aside>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <dialog class="settings-dialog" id="settingsDialog">
+      <form method="dialog" id="settingsForm">
+        <div class="dialog-heading">
+          <div><span class="eyebrow">SETTINGS</span><h2>Make Bol yours</h2></div>
+          <button class="close-button" value="cancel" aria-label="Close">×</button>
+        </div>
+        <label>
+          <span>Language you’re learning</span>
+          <input id="targetLanguageInput" autocomplete="off" placeholder="Hindi" />
+        </label>
+        <label>
+          <span>OpenAI API key</span>
+          <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-…" />
+          <small>Used for translation and daily-speech notes. Encrypted in macOS safe storage.</small>
+        </label>
+        <label>
+          <span>Model</span>
+          <input id="modelInput" autocomplete="off" placeholder="gpt-5-mini" />
+        </label>
+        <div class="dialog-actions">
+          <button type="button" class="text-button" id="apiKeyHelp">Get an API key ↗</button>
+          <button value="default" class="primary-button">Save settings</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
