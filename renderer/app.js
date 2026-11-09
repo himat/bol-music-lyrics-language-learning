@@ -1,6 +1,6 @@
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
-  'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachBody',
+  'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachPanel','coachBody',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton',
 ].map((id) => [id, document.getElementById(id)]));
@@ -15,6 +15,7 @@ const state = {
 };
 let spotifyPollTimer = null;
 let tickTimer = null;
+let coachHoverExitTimer = null;
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
 function formatTime(ms) { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -192,8 +193,11 @@ function renderLyrics() {
     if (analysis) translation.textContent = analysis.translation;
     else translation.innerHTML = '<span class="translation-placeholder"></span>';
     row.append(original, translation);
-    row.addEventListener('mouseenter', () => selectCoachLine(line.index, true));
-    row.addEventListener('mouseleave', () => { state.hoveredIndex = null; updateRows(); selectCoachLine(state.activeIndex, false); });
+    row.addEventListener('mouseenter', () => {
+      cancelCoachHoverExit();
+      selectCoachLine(line.index, true);
+    });
+    row.addEventListener('mouseleave', scheduleCoachHoverExit);
     row.addEventListener('click', () => seekToLine(line));
     elements.lyricsScroll.appendChild(row);
   }
@@ -202,6 +206,21 @@ function renderLyrics() {
   if (!state.analysis) {
     elements.coachBody.innerHTML = '<div class="coach-intro"><p>Add an API key, then analyze the song to get English translations and daily-speech guidance.</p></div>';
   }
+}
+
+function cancelCoachHoverExit() {
+  clearTimeout(coachHoverExitTimer);
+  coachHoverExitTimer = null;
+}
+
+function scheduleCoachHoverExit() {
+  cancelCoachHoverExit();
+  coachHoverExitTimer = setTimeout(() => {
+    if (elements.coachPanel.matches(':hover') || elements.lyricsScroll.matches(':hover')) return;
+    state.hoveredIndex = null;
+    updateRows();
+    selectCoachLine(state.activeIndex, false);
+  }, 1500);
 }
 
 function renderCurrentLineDock() {
@@ -292,6 +311,7 @@ function setEmpty(title, message) {
 
 async function loadTrack(track) {
   const token = ++state.loadToken;
+  cancelCoachHoverExit();
   state.track = track;
   state.positionBase = track.positionMs;
   state.positionObservedAt = track.observedAt || Date.now();
@@ -303,6 +323,7 @@ async function loadTrack(track) {
   elements.syncStatus.hidden = true;
   elements.languageDetectionStatus.hidden = true;
   state.activeIndex = -1;
+  state.hoveredIndex = null;
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
   try {
@@ -493,6 +514,7 @@ elements.previousButton.addEventListener('click', () => controlPlayback('previou
 elements.playPauseButton.addEventListener('click', () => controlPlayback('playPause'));
 elements.nextButton.addEventListener('click', () => controlPlayback('next'));
 elements.currentLineDock.addEventListener('click', scrollToActive);
+elements.lyricsScroll.addEventListener('mouseleave', scheduleCoachHoverExit);
 elements.lyricsScroll.addEventListener('scroll', () => {
   if (state.programmaticScroll) return;
   state.userBrowsing = true;
@@ -515,6 +537,8 @@ document.addEventListener('visibilitychange', () => {
   scheduleSpotifyPoll(document.hidden ? 10000 : 0);
   scheduleTick(0);
 });
+elements.coachPanel.addEventListener('mouseenter', cancelCoachHoverExit);
+elements.coachPanel.addEventListener('mouseleave', scheduleCoachHoverExit);
 elements.settingsForm.addEventListener('submit', async (event) => {
   if (event.submitter?.value !== 'default') return;
   event.preventDefault();
