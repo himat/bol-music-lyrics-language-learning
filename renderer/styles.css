@@ -28,7 +28,7 @@ button { color: inherit; }
 .topbar { -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; padding-left: 68px; border-bottom: 1px solid var(--line); }
 .topbar button, .topbar input { -webkit-app-region: no-drag; }
 .wordmark { display: flex; align-items: center; border: 0; background: none; cursor: pointer; }
-.logo-mark { display: grid; place-items: center; min-width: 58px; height: 32px; padding: 0 11px 2px; color: #161613; background: var(--lime); border-radius: 10px 10px 10px 3px; font: 600 21px/1 Georgia, serif; letter-spacing: -.04em; }
+.logo-mark { display: grid; place-items: center; min-width: 58px; height: 32px; padding: 0 11px 2px; color: #161613; background: var(--lime); border-radius: 10px 10px 10px 3px; font: 600 22px/1 -apple-system, "Kohinoor Devanagari", sans-serif; }
 .source-pill { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; color: #b9b8b1; font-size: 12px; padding: 7px 12px; border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: 99px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #6f706c; box-shadow: 0 0 0 3px rgba(255,255,255,.03); }
 .source-pill.connected .status-dot { background: var(--lime); box-shadow: 0 0 12px rgba(217,255,115,.45); }
