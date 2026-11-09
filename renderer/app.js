@@ -147,6 +147,15 @@ function glossedWordsHTML(text, analysis, className) {
   return holder.innerHTML;
 }
 
+function keepCoachGlossInBounds(word) {
+  const panel = elements.coachBody.getBoundingClientRect();
+  const anchor = word.getBoundingClientRect();
+  const tooltipWidth = Math.min(210, Math.max(120, panel.width - 16));
+  const preferredLeft = anchor.left + anchor.width / 2 - tooltipWidth / 2;
+  const left = Math.min(Math.max(preferredLeft, panel.left + 8), panel.right - tooltipWidth - 8);
+  word.style.setProperty('--coach-gloss-left', `${left - anchor.left}px`);
+}
+
 function renderLyrics() {
   elements.emptyState.hidden = true;
   elements.lyricsScroll.hidden = false;
@@ -257,6 +266,9 @@ function selectCoachLine(index, hovered = false) {
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>
     ${alternative}
   </div>`;
+  for (const word of elements.coachBody.querySelectorAll('.coach-word')) {
+    word.addEventListener('mouseenter', () => keepCoachGlossInBounds(word));
+  }
 }
 
 function escapeHTML(value = '') { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }

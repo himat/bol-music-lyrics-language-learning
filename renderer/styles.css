@@ -164,8 +164,8 @@ button { color: inherit; }
 .coach-quote { margin: 14px 0 5px; font-size: 17px; line-height: 1.4; }
 .coach-word { position: relative; border-bottom: 1px dotted rgba(143,214,255,.55); cursor: help; transition: color .12s, border-color .12s; }
 .coach-word:hover { z-index: 8; color: var(--sky); border-color: currentColor; }
-.coach-word::after { content: attr(data-gloss); position: absolute; left: 50%; bottom: calc(100% + 8px); width: max-content; max-width: 210px; padding: 7px 9px; color: #171713; background: var(--sky); border-radius: 8px; box-shadow: 0 9px 26px rgba(0,0,0,.4); font: 600 11px/1.35 -apple-system, sans-serif; text-align: center; white-space: normal; opacity: 0; pointer-events: none; transform: translate(-50%, 3px); transition: opacity .12s, transform .12s; }
-.coach-word:hover::after { opacity: 1; transform: translate(-50%, 0); }
+.coach-word::after { content: attr(data-gloss); position: absolute; left: var(--coach-gloss-left, 0); bottom: calc(100% + 8px); width: max-content; max-width: 210px; padding: 7px 9px; color: #171713; background: var(--sky); border-radius: 8px; box-shadow: 0 9px 26px rgba(0,0,0,.4); font: 600 11px/1.35 -apple-system, sans-serif; text-align: center; white-space: normal; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .12s, transform .12s; }
+.coach-word:hover::after { opacity: 1; transform: translateY(0); }
 .coach-translation { margin: 0 0 18px; color: #aaa9a3; font: italic 15px/1.4 Georgia, serif; }
 .explanation-block { padding: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 12px; }
 .explanation-block small { display: block; margin-bottom: 6px; color: #77766f; font-size: 9px; letter-spacing: .1em; }
