@@ -247,10 +247,13 @@ function selectCoachLine(index, hovered = false) {
   const languageBadge = languageWarning
     ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
   const verdict = learningVerdict(analysis);
+  const quote = analysis.romanization
+    ? `<span class="romanized-phrase" data-romanization="${escapeHTML(analysis.romanization)}" aria-label="${escapeHTML(`${line.text}: ${analysis.romanization}`)}">${escapeHTML(line.text)}</span>`
+    : escapeHTML(line.text);
   elements.coachBody.innerHTML = `<div class="coach-card">
     <div class="learning-verdict ${verdict.className}"><span class="verdict-icon">${verdict.className === 'learn' ? '✓' : '!'}</span><span><strong>${verdict.title}</strong><small>${escapeHTML(verdict.detail)}</small></span></div>
     <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
-    <p class="coach-quote">${escapeHTML(line.text)}</p>
+    <p class="coach-quote">${quote}</p>
     <p class="coach-translation">“${escapeHTML(analysis.translation)}”</p>
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>
     ${alternative}

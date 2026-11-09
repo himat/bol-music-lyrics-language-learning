@@ -162,6 +162,10 @@ button { color: inherit; }
 .coach-language-badge.mixed { color: var(--lavender); border-color: rgba(169,156,255,.35); }
 .coach-language-badge.unclear { color: #aaa9a2; border-color: var(--line); }
 .coach-quote { margin: 14px 0 5px; font-size: 17px; line-height: 1.4; }
+.romanized-phrase { position: relative; border-bottom: 1px dotted rgba(143,214,255,.55); cursor: help; }
+.romanized-phrase:hover { color: var(--sky); }
+.romanized-phrase::after { content: attr(data-romanization); position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 8; width: max-content; max-width: 270px; padding: 7px 9px; color: #171713; background: var(--sky); border-radius: 8px; box-shadow: 0 9px 26px rgba(0,0,0,.4); font: 600 11px/1.35 -apple-system, sans-serif; white-space: normal; opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .12s, transform .12s; }
+.romanized-phrase:hover::after { opacity: 1; transform: translateY(0); }
 .coach-translation { margin: 0 0 18px; color: #aaa9a3; font: italic 15px/1.4 Georgia, serif; }
 .explanation-block { padding: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 12px; }
 .explanation-block small { display: block; margin-bottom: 6px; color: #77766f; font-size: 9px; letter-spacing: .1em; }
