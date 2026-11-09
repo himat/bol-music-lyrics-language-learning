@@ -15,8 +15,8 @@ const state = {
   loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
   repeatMode: 'off', repeatRestarting: false,
-  flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', studyIndex: 0, studyRevealed: false,
-  flashcardGenerationKeys: new Set(),
+  flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
+  flashcardGenerationKeys: new Set(), studyRatingInFlight: false,
 };
 let spotifyPollTimer = null;
 let tickTimer = null;
@@ -284,6 +284,8 @@ function renderFlashcardDetail(card) {
 
 function renderFlashcards() {
   updateFlashcardCount();
+  const dueCount = dueFlashcards().length;
+  elements.studyFlashcardsTab.textContent = dueCount ? `Test yourself · ${dueCount}` : 'Test yourself';
   if (!state.flashcards.length) {
     elements.flashcardsList.innerHTML = '';
     renderFlashcardDetail(null);
@@ -305,7 +307,7 @@ function renderFlashcards() {
 async function removeFlashcard(id) {
   state.flashcards = await window.bol.deleteFlashcard(id);
   state.selectedFlashcardId = state.flashcards[0]?.id || null;
-  state.studyIndex = Math.min(state.studyIndex, Math.max(0, state.flashcards.length - 1));
+  if (state.currentStudyCardId === id) state.currentStudyCardId = null;
   renderFlashcards();
   markSavedCoachWords();
   showToast('Word removed');
@@ -327,26 +329,76 @@ async function retryFlashcardExamples(card, button) {
   }
 }
 
+function cardIsDue(card, now = Date.now()) {
+  return !card.study?.dueAt || Date.parse(card.study.dueAt) <= now;
+}
+
+function dueFlashcards(now = Date.now()) {
+  return state.flashcards.filter((card) => cardIsDue(card, now)).sort((a, b) => {
+    const aDue = a.study?.dueAt ? Date.parse(a.study.dueAt) : Number.NEGATIVE_INFINITY;
+    const bDue = b.study?.dueAt ? Date.parse(b.study.dueAt) : Number.NEGATIVE_INFINITY;
+    return aDue - bDue;
+  });
+}
+
+function nextReviewLabel() {
+  const nextDue = state.flashcards.map((card) => Date.parse(card.study?.dueAt || ''))
+    .filter((dueAt) => Number.isFinite(dueAt) && dueAt > Date.now())
+    .sort((a, b) => a - b)[0];
+  if (!nextDue) return 'Add another word whenever you hear one worth learning.';
+  const milliseconds = nextDue - Date.now();
+  if (milliseconds < 60 * 60 * 1000) return `Next review in ${Math.max(1, Math.ceil(milliseconds / 60000))} min.`;
+  if (milliseconds < 48 * 60 * 60 * 1000) return `Next review in ${Math.ceil(milliseconds / 3600000)} hr.`;
+  return `Next review in ${Math.ceil(milliseconds / 86400000)} days.`;
+}
+
+function revealStudyAnswer() {
+  state.studyRevealed = true;
+  renderStudyView();
+}
+
+async function rateStudyCard(rating) {
+  if (state.studyRatingInFlight) return;
+  const card = state.flashcards.find((item) => item.id === state.currentStudyCardId);
+  if (!card) return;
+  state.studyRatingInFlight = true;
+  for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-rating]')) button.disabled = true;
+  try {
+    const result = await window.bol.reviewFlashcard(card.id, rating);
+    state.flashcards = result.cards;
+    state.currentStudyCardId = null;
+    state.studyRevealed = false;
+    renderFlashcards();
+  } catch (error) {
+    showToast(String(error.message || 'Could not save this review.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
+    for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-rating]')) button.disabled = false;
+  } finally {
+    state.studyRatingInFlight = false;
+  }
+}
+
 function renderStudyView() {
   if (!state.flashcards.length) {
     elements.flashcardsStudyView.innerHTML = flashcardEmptyHTML();
     return;
   }
-  state.studyIndex %= state.flashcards.length;
-  const card = state.flashcards[state.studyIndex];
-  const source = card.contexts?.[0];
-  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(card.romanization)}</strong><p>${escapeHTML(card.meaning)}</p>${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions"><button class="again-answer" data-study-answer="again">Again</button><button class="remembered-answer" data-study-answer="remembered">Got it</button></div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
-  elements.flashcardsStudyView.innerHTML = `<div class="study-card"><span class="study-progress">${state.studyIndex + 1} of ${state.flashcards.length} · What does this mean?</span><h3>${escapeHTML(card.nativeScript || card.word)}</h3><span class="study-prompt">Say the meaning and pronunciation before revealing it</span>${answer}</div>`;
-  elements.flashcardsStudyView.querySelector('#revealFlashcardAnswer')?.addEventListener('click', () => { state.studyRevealed = true; renderStudyView(); });
-  for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-answer]')) {
-    button.addEventListener('click', async () => {
-      const remembered = button.dataset.studyAnswer === 'remembered';
-      await window.bol.reviewFlashcard(card.id, remembered);
-      state.studyIndex = (state.studyIndex + 1) % state.flashcards.length;
-      state.studyRevealed = false;
-      renderStudyView();
-    });
+  const due = dueFlashcards();
+  if (!due.length) {
+    state.currentStudyCardId = null;
+    state.studyRevealed = false;
+    elements.flashcardsStudyView.innerHTML = `<div class="study-card study-complete"><span class="study-complete-icon">✓</span><h3>All caught up</h3><span class="study-prompt">${escapeHTML(nextReviewLabel())}</span><div class="study-actions"><button class="reveal-answer" id="browseSavedWords">Browse saved words</button></div></div>`;
+    elements.flashcardsStudyView.querySelector('#browseSavedWords')?.addEventListener('click', () => setFlashcardMode('browse'));
+    return;
   }
+  const card = due.find((item) => item.id === state.currentStudyCardId) || due[0];
+  state.currentStudyCardId = card.id;
+  const source = card.contexts?.[0];
+  const intervals = card.ratingIntervals || { again: '1m', hard: '6m', good: '10m', easy: '4d' };
+  const ratingButton = (rating, label) => `<button class="rating-answer ${rating}-answer" data-study-rating="${rating}"><small>${escapeHTML(intervals[rating])}</small><span>${label}</span></button>`;
+  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(card.romanization)}</strong><p>${escapeHTML(card.meaning)}</p>${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions rating-actions">${ratingButton('again', 'Again')}${ratingButton('hard', 'Hard')}${ratingButton('good', 'Good')}${ratingButton('easy', 'Easy')}</div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
+  elements.flashcardsStudyView.innerHTML = `<div class="study-card"><span class="study-progress">${due.length} due · What does this mean?</span><h3>${escapeHTML(card.nativeScript || card.word)}</h3><span class="study-prompt">Say the meaning and pronunciation before revealing it</span>${answer}</div>`;
+  elements.flashcardsStudyView.querySelector('#revealFlashcardAnswer')?.addEventListener('click', revealStudyAnswer);
+  for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-rating]')) button.addEventListener('click', () => rateStudyCard(button.dataset.studyRating));
 }
 
 function setFlashcardMode(mode) {
@@ -765,6 +817,11 @@ elements.flashcardsButton.addEventListener('click', openFlashcards);
 elements.flashcardsCloseButton.addEventListener('click', () => elements.flashcardsDialog.close());
 elements.browseFlashcardsTab.addEventListener('click', () => setFlashcardMode('browse'));
 elements.studyFlashcardsTab.addEventListener('click', () => setFlashcardMode('study'));
+for (const dialog of [elements.flashcardsDialog, elements.settingsDialog]) {
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+}
 elements.homeButton.addEventListener('click', pollSpotify);
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
@@ -782,6 +839,26 @@ elements.lyricsScroll.addEventListener('scroll', () => {
   state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
 }, { passive: true });
 document.addEventListener('keydown', (event) => {
+  if (elements.flashcardsDialog.open && state.flashcardMode === 'study' && !event.repeat) {
+    const target = event.target;
+    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
+    if (!typing && !state.studyRevealed && ['Space', 'Enter'].includes(event.code)) {
+      event.preventDefault();
+      revealStudyAnswer();
+      return;
+    }
+    const ratings = { Digit1: 'again', Digit2: 'hard', Digit3: 'good', Digit4: 'easy' };
+    if (!typing && state.studyRevealed && ratings[event.code]) {
+      event.preventDefault();
+      rateStudyCard(ratings[event.code]);
+      return;
+    }
+    if (!typing && state.studyRevealed && ['Space', 'Enter'].includes(event.code)) {
+      event.preventDefault();
+      rateStudyCard('good');
+      return;
+    }
+  }
   if (event.code !== 'Space' || event.repeat || state.mode !== 'spotify') return;
   const target = event.target;
   const isInteractive = target instanceof HTMLInputElement
@@ -831,6 +908,9 @@ async function init() {
   await pollSpotify();
   scheduleSpotifyPoll();
   scheduleTick(0);
+  setInterval(() => {
+    if (elements.flashcardsDialog.open && state.flashcardMode === 'study' && !state.studyRevealed) renderFlashcards();
+  }, 30000);
 }
 
 init();

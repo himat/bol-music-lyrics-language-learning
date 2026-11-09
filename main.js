@@ -6,6 +6,7 @@ const { fetchLyrics } = require('./src/lyrics');
 const { createCoach } = require('./src/coach');
 const { analysisCacheKey, readAnalysisCache, writeAnalysisCache } = require('./src/analysis-cache');
 const { readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard } = require('./src/flashcards');
+const { normalizeStudyState, ratingIntervals } = require('./src/spaced-repetition');
 
 let mainWindow;
 let flashcardWriteQueue = Promise.resolve();
@@ -54,6 +55,19 @@ function serializeFlashcardWrite(operation) {
   const result = flashcardWriteQueue.then(operation, operation);
   flashcardWriteQueue = result.catch(() => {});
   return result;
+}
+
+function presentFlashcard(card) {
+  const study = normalizeStudyState(card.study);
+  return {
+    ...card,
+    study,
+    ratingIntervals: Object.fromEntries(Object.entries(ratingIntervals(study)).map(([rating, interval]) => [rating, interval.label])),
+  };
+}
+
+function presentFlashcardResult(result) {
+  return { ...result, card: presentFlashcard(result.card), cards: result.cards.map(presentFlashcard) };
 }
 
 async function loadSettings() {
@@ -122,17 +136,17 @@ app.whenReady().then(() => {
     await writeAnalysisCache(analysisCachePath(), key, analysis);
     return analysis;
   });
-  ipcMain.handle('flashcards:list', async () => (await readFlashcards(flashcardsPath())).cards);
-  ipcMain.handle('flashcards:save', (_event, payload) => serializeFlashcardWrite(() => upsertFlashcard(flashcardsPath(), payload)));
+  ipcMain.handle('flashcards:list', async () => (await readFlashcards(flashcardsPath())).cards.map(presentFlashcard));
+  ipcMain.handle('flashcards:save', (_event, payload) => serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), payload))));
   ipcMain.handle('flashcards:examples', async (_event, payload) => {
     const settings = await loadSettings();
     const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('Add an OpenAI API key in Settings to generate conversation examples.');
     const generated = await createCoach({ ...settings, apiKey }).generateFlashcardExamples(payload);
-    return serializeFlashcardWrite(() => upsertFlashcard(flashcardsPath(), { ...payload, nativeScript: generated.nativeScript, examples: generated.examples }));
+    return serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), { ...payload, nativeScript: generated.nativeScript, examples: generated.examples })));
   });
-  ipcMain.handle('flashcards:delete', (_event, id) => serializeFlashcardWrite(() => deleteFlashcard(flashcardsPath(), id)));
-  ipcMain.handle('flashcards:review', (_event, id, remembered) => serializeFlashcardWrite(() => reviewFlashcard(flashcardsPath(), id, remembered)));
+  ipcMain.handle('flashcards:delete', (_event, id) => serializeFlashcardWrite(async () => (await deleteFlashcard(flashcardsPath(), id)).map(presentFlashcard)));
+  ipcMain.handle('flashcards:review', (_event, id, rating) => serializeFlashcardWrite(async () => presentFlashcardResult(await reviewFlashcard(flashcardsPath(), id, rating))));
   ipcMain.handle('settings:load', loadSettings);
   ipcMain.handle('settings:save', (_event, settings) => saveSettings(settings));
   ipcMain.handle('external:open', (_event, url) => shell.openExternal(url));

@@ -29,10 +29,12 @@ test('persists review results and deletes cards', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-flashcards-'));
   const file = path.join(directory, 'flashcards.json');
   const { card } = await upsertFlashcard(file, { word: 'चलो', meaning: 'let us go', language: 'Hindi' });
-  await reviewFlashcard(file, card.id, true);
-  await reviewFlashcard(file, card.id, false);
+  await reviewFlashcard(file, card.id, 'good', Date.parse('2026-11-09T18:00:00.000Z'));
+  await reviewFlashcard(file, card.id, 'again', Date.parse('2026-11-09T18:10:00.000Z'));
   let store = await readFlashcards(file);
-  assert.deepEqual(store.cards[0].study, { seen: 2, correct: 1, again: 1, lastReviewedAt: store.cards[0].study.lastReviewedAt });
+  assert.equal(store.cards[0].study.reviews, 2);
+  assert.equal(store.cards[0].study.phase, 'learning');
+  assert.equal(store.cards[0].study.lastRating, 'again');
   await deleteFlashcard(file, card.id);
   store = await readFlashcards(file);
   assert.equal(store.cards.length, 0);

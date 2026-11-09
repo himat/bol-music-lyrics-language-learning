@@ -245,15 +245,25 @@ button { color: inherit; }
 .retry-examples { padding: 9px 12px; color: #171713; background: var(--lime); border: 0; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer; }
 .study-view { min-height: 0; overflow-y: auto; }
 .study-card { min-height: 390px; display: grid; align-content: center; justify-items: center; padding: 34px; text-align: center; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.02); }
-.study-progress { color: #6f6e68; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.study-progress { color: #77766f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .study-card h3 { margin: 24px 0 7px; font: 600 44px Georgia, serif; }
-.study-prompt { color: #898881; font-size: 12px; }
+.study-prompt { color: #989790; font-size: 14px; }
 .study-answer { width: min(520px, 100%); margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
 .study-answer strong { display: block; color: var(--sky); font-size: 15px; }
 .study-answer p { margin: 6px 0; font-size: 18px; }
 .study-source { color: #85847e; font: italic 12px Georgia, serif; }
 .study-actions { display: flex; gap: 8px; margin-top: 22px; }
 .study-actions button { padding: 10px 18px; border: 0; border-radius: 9px; font-size: 11px; font-weight: 700; cursor: pointer; }
-.reveal-answer, .remembered-answer { color: #171713; background: var(--lime); }
+.reveal-answer { color: #171713; background: var(--lime); }
+.rating-actions { align-items: stretch; }
+.rating-answer { display: grid; min-width: 78px; gap: 3px; place-items: center; color: #171713; }
+.rating-answer small { font-size: 9px; font-weight: 600; opacity: .68; }
+.rating-answer span { font-size: 11px; }
+.rating-answer:disabled { opacity: .5; cursor: wait; }
 .again-answer { color: #171713; background: var(--coral); }
+.hard-answer { background: var(--lavender); }
+.good-answer { background: var(--lime); }
+.easy-answer { background: var(--sky); }
+.study-complete-icon { display: grid; width: 46px; height: 46px; place-items: center; color: #171713; background: var(--lime); border-radius: 50%; font-size: 24px; font-weight: 800; }
+.study-complete h3 { margin-top: 15px; font-size: 31px; }
 @media (max-width: 1120px) { .workspace { grid-template-columns: minmax(0,1fr) 300px; } .coach-panel { padding-inline: 18px; } }

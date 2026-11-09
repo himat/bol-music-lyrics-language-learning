@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('bol', {
   saveFlashcard: (payload) => ipcRenderer.invoke('flashcards:save', payload),
   generateFlashcardExamples: (payload) => ipcRenderer.invoke('flashcards:examples', payload),
   deleteFlashcard: (id) => ipcRenderer.invoke('flashcards:delete', id),
-  reviewFlashcard: (id, remembered) => ipcRenderer.invoke('flashcards:review', id, remembered),
+  reviewFlashcard: (id, rating) => ipcRenderer.invoke('flashcards:review', id, rating),
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   openExternal: (url) => ipcRenderer.invoke('external:open', url),

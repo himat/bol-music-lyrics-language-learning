@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { defaultStudyState, normalizeStudyState, scheduleReview } = require('./spaced-repetition');
 
 function clean(value) {
   return String(value || '').trim();
@@ -78,7 +79,7 @@ async function upsertFlashcard(filePath, input) {
     updatedAt: now,
     contexts,
     examples: incomingExamples.length ? incomingExamples : (existing?.examples || []),
-    study: existing?.study || { seen: 0, correct: 0, again: 0, lastReviewedAt: null },
+    study: normalizeStudyState(existing?.study || defaultStudyState()),
   };
   if (existingIndex >= 0) store.cards[existingIndex] = card;
   else store.cards.unshift(card);
@@ -93,18 +94,14 @@ async function deleteFlashcard(filePath, id) {
   return store.cards;
 }
 
-async function reviewFlashcard(filePath, id, remembered) {
+async function reviewFlashcard(filePath, id, rating, now = Date.now()) {
   const store = await readFlashcards(filePath);
   const card = store.cards.find((item) => item.id === id);
   if (!card) throw new Error('Flashcard not found.');
-  card.study = card.study || { seen: 0, correct: 0, again: 0, lastReviewedAt: null };
-  card.study.seen += 1;
-  if (remembered) card.study.correct += 1;
-  else card.study.again += 1;
-  card.study.lastReviewedAt = new Date().toISOString();
+  card.study = scheduleReview(card.study, rating, now);
   card.updatedAt = card.study.lastReviewedAt;
   await writeFlashcards(filePath, store);
-  return card;
+  return { card, cards: store.cards };
 }
 
 module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples };
