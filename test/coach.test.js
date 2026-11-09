@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractOutputText, planAnalysis } = require('../src/coach');
+const { extractOutputText, planAnalysis, analysisSchema } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -31,4 +31,11 @@ test('deduplicates repeated chorus lines and creates small batches', () => {
     [{ index: 3, text: 'last' }],
   ]);
   assert.deepEqual(plan.originals[2], { index: 2, canonicalIndex: 1 });
+});
+
+test('requires a per-line language and target-language fit', () => {
+  const lineSchema = analysisSchema.properties.lines.items;
+  assert.ok(lineSchema.required.includes('language'));
+  assert.ok(lineSchema.required.includes('targetLanguageFit'));
+  assert.deepEqual(lineSchema.properties.targetLanguageFit.enum, ['target', 'mixed', 'other', 'unclear']);
 });

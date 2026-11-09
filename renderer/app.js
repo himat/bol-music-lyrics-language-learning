@@ -1,6 +1,6 @@
 const demoTrack = {
   available: true, demo: true, isPlaying: true, state: 'playing', title: 'Aaj Ka Safar',
-  artist: 'Bol demo · everyday Hindi', album: 'Your first conversation', durationMs: 25000,
+  artist: 'Bol demo · spot the Punjabi line', album: 'Your first conversation', durationMs: 25000,
   positionMs: 0, observedAt: Date.now(), artworkUrl: '', spotifyUrl: '',
 };
 
@@ -11,18 +11,18 @@ const demoLyrics = {
     { index: 1, timeMs: 5000, text: 'चलो, चाय पीते हैं' },
     { index: 2, timeMs: 10000, text: 'तुम्हारा दिन कैसा था?' },
     { index: 3, timeMs: 15000, text: 'बस, ठीक था—थोड़ा लंबा' },
-    { index: 4, timeMs: 20000, text: 'कल फिर मिलते हैं' },
+    { index: 4, timeMs: 20000, text: 'ਕੱਲ੍ਹ ਫਿਰ ਮਿਲਾਂਗੇ' },
   ],
 };
 
 const demoAnalysis = {
-  language: 'Hindi', summary: 'These are all natural phrases you can use in relaxed daily conversation.',
+  language: 'Hindi and Punjabi', summary: 'Most lines are natural Hindi; the final line is Punjabi and is marked so you do not learn it as Hindi.',
   lines: [
-    { index: 0, translation: 'The weather is nice today.', register: 'common', explanation: 'A straightforward, everyday observation.', dailyAlternative: '' },
-    { index: 1, translation: 'Come on, let’s have tea.', register: 'casual', explanation: 'चलो is a very common way to suggest doing something together.', dailyAlternative: '' },
-    { index: 2, translation: 'How was your day?', register: 'common', explanation: 'Natural with friends, family, and colleagues.', dailyAlternative: '' },
-    { index: 3, translation: 'It was fine—just a bit long.', register: 'casual', explanation: 'बस softens the answer and can mean “just” or “well.”', dailyAlternative: '' },
-    { index: 4, translation: 'Let’s meet again tomorrow.', register: 'common', explanation: 'A natural, friendly way to make a casual plan.', dailyAlternative: '' },
+    { index: 0, translation: 'The weather is nice today.', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'A straightforward, everyday observation.', dailyAlternative: '' },
+    { index: 1, translation: 'Come on, let’s have tea.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'चलो is a very common way to suggest doing something together.', dailyAlternative: '' },
+    { index: 2, translation: 'How was your day?', language: 'Hindi', targetLanguageFit: 'target', register: 'common', explanation: 'Natural with friends, family, and colleagues.', dailyAlternative: '' },
+    { index: 3, translation: 'It was fine—just a bit long.', language: 'Hindi', targetLanguageFit: 'target', register: 'casual', explanation: 'बस softens the answer and can mean “just” or “well.”', dailyAlternative: '' },
+    { index: 4, translation: 'We’ll meet again tomorrow.', language: 'Punjabi', targetLanguageFit: 'other', register: 'common', explanation: 'This is natural Punjabi, not Hindi, so do not count it as a Hindi phrase.', dailyAlternative: '' },
   ],
 };
 
@@ -73,6 +73,11 @@ function renderTrack() {
 
 function analysisFor(index) { return state.analysis?.lines?.find((line) => line.index === index); }
 
+function languageLabel(analysis) {
+  if (!analysis || analysis.targetLanguageFit === 'target') return '';
+  return analysis.language || 'Language unclear';
+}
+
 function renderLyrics() {
   elements.emptyState.hidden = true;
   elements.lyricsScroll.hidden = false;
@@ -81,10 +86,20 @@ function renderLyrics() {
     const analysis = analysisFor(line.index);
     const row = document.createElement('div');
     row.className = 'lyric-row';
+    if (analysis?.targetLanguageFit) row.classList.add(`language-${analysis.targetLanguageFit}`);
     row.dataset.index = line.index;
     const original = document.createElement('div');
     original.className = 'lyric-original';
-    original.textContent = line.text;
+    const originalText = document.createElement('span');
+    originalText.textContent = line.text;
+    original.appendChild(originalText);
+    const label = languageLabel(analysis);
+    if (label) {
+      const languageTag = document.createElement('small');
+      languageTag.className = `language-tag ${analysis.targetLanguageFit}`;
+      languageTag.textContent = label;
+      original.appendChild(languageTag);
+    }
     const translation = document.createElement('div');
     translation.className = 'lyric-translation';
     if (analysis) translation.textContent = analysis.translation;
@@ -119,8 +134,11 @@ function selectCoachLine(index, hovered = false) {
   }
   const alternative = analysis.dailyAlternative
     ? `<div class="alternative"><small>SAY THIS IN DAILY LIFE</small><p>${escapeHTML(analysis.dailyAlternative)}</p></div>` : '';
+  const languageWarning = languageLabel(analysis);
+  const languageBadge = languageWarning
+    ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
   elements.coachBody.innerHTML = `<div class="coach-card">
-    <span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>
+    <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
     <p class="coach-quote">${escapeHTML(line.text)}</p>
     <p class="coach-translation">“${escapeHTML(analysis.translation)}”</p>
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>

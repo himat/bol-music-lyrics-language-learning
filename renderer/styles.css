@@ -26,8 +26,8 @@ button { color: inherit; }
 .app-shell { height: 100%; display: grid; grid-template-rows: 58px 148px minmax(0, 1fr); padding: 0 24px 24px; }
 .topbar { -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; padding-left: 68px; border-bottom: 1px solid var(--line); }
 .topbar button, .topbar input { -webkit-app-region: no-drag; }
-.wordmark { display: flex; gap: 9px; align-items: center; border: 0; background: none; font-family: Georgia, serif; font-size: 22px; cursor: pointer; }
-.logo-mark { display: grid; place-items: center; width: 29px; height: 29px; color: #161613; background: var(--lime); border-radius: 9px 9px 9px 3px; font: 600 16px -apple-system, sans-serif; }
+.wordmark { display: flex; align-items: center; border: 0; background: none; cursor: pointer; }
+.logo-mark { display: grid; place-items: center; min-width: 58px; height: 32px; padding: 0 11px 2px; color: #161613; background: var(--lime); border-radius: 10px 10px 10px 3px; font: 600 21px/1 Georgia, serif; letter-spacing: -.04em; }
 .source-pill { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; color: #b9b8b1; font-size: 12px; padding: 7px 12px; border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: 99px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #6f706c; box-shadow: 0 0 0 3px rgba(255,255,255,.03); }
 .source-pill.connected .status-dot { background: var(--lime); box-shadow: 0 0 12px rgba(217,255,115,.45); }
@@ -64,7 +64,15 @@ button { color: inherit; }
 .lyric-row:hover, .lyric-row.hovered { color: #d8d6ce; opacity: 1; background: rgba(255,255,255,.035); }
 .lyric-row.active { color: var(--ink); opacity: 1; transform: translateX(5px); }
 .lyric-row.active::before { background: var(--lime); box-shadow: 0 0 13px rgba(217,255,115,.5); }
-.lyric-original { font: 500 18px/1.42 -apple-system, sans-serif; }
+.lyric-row.language-other { opacity: .38; }
+.lyric-row.language-other:hover, .lyric-row.language-other.active { opacity: .85; background: rgba(255,134,111,.055); }
+.lyric-row.language-other.active::before { background: var(--coral); box-shadow: 0 0 13px rgba(255,134,111,.4); }
+.lyric-row.language-mixed { background: linear-gradient(90deg, rgba(169,156,255,.04), transparent 55%); }
+.lyric-row.language-mixed.active::before { background: var(--lavender); box-shadow: 0 0 13px rgba(169,156,255,.4); }
+.lyric-original { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font: 500 18px/1.42 -apple-system, sans-serif; }
+.language-tag { display: inline-flex; padding: 3px 6px; border: 1px solid rgba(255,134,111,.28); border-radius: 5px; color: var(--coral); font-size: 8px; font-weight: 600; line-height: 1; letter-spacing: .08em; text-transform: uppercase; }
+.language-tag.mixed { color: var(--lavender); border-color: rgba(169,156,255,.3); }
+.language-tag.unclear { color: #aaa9a2; border-color: var(--line); }
 .lyric-translation { font: 600 17px/1.45 Georgia, serif; }
 .translation-placeholder { display: inline-block; width: 70%; height: 13px; margin-top: 5px; border-radius: 5px; background: linear-gradient(90deg, #2b2b28, #363631, #2b2b28); background-size: 180% 100%; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { to { background-position: -180% 0; } }
@@ -85,9 +93,13 @@ button { color: inherit; }
 .legend .common { background: var(--lime); }.legend .poetic { background: var(--coral); }.legend .formal { background: var(--lavender); }
 .coach-card { animation: enter .24s ease-out; }
 @keyframes enter { from { opacity: 0; transform: translateY(5px); } }
+.coach-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .register-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; color: #1b1b17; background: var(--lime); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .register-badge.poetic, .register-badge.uncommon { background: var(--coral); }
 .register-badge.formal, .register-badge.unclear { background: var(--lavender); }
+.coach-language-badge { display: inline-flex; padding: 5px 8px; border: 1px solid rgba(255,134,111,.35); border-radius: 7px; color: var(--coral); font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.coach-language-badge.mixed { color: var(--lavender); border-color: rgba(169,156,255,.35); }
+.coach-language-badge.unclear { color: #aaa9a2; border-color: var(--line); }
 .coach-quote { margin: 14px 0 5px; font-size: 17px; line-height: 1.4; }
 .coach-translation { margin: 0 0 18px; color: #aaa9a3; font: italic 15px/1.4 Georgia, serif; }
 .explanation-block { padding: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 12px; }
