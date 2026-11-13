@@ -547,8 +547,27 @@ function setCoachMode(mode, focusInput = false) {
   state.coachMode = mode;
   elements.coachModeButton.classList.toggle('active', mode === 'coach');
   elements.chatModeButton.classList.toggle('active', mode === 'chat');
+  syncAnalyzeButtonVisibility();
   if (mode === 'chat') renderChat(focusInput);
   else selectCoachLine(state.coachIndex >= 0 ? state.coachIndex : state.activeIndex, false);
+}
+
+function syncAnalyzeButtonVisibility() {
+  elements.analyzeButton.hidden = state.coachMode !== 'coach' || !state.lyrics?.lines?.length || Boolean(state.analysis);
+}
+
+function chatMessageHTML(content) {
+  const inline = (value) => escapeHTML(value)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  return String(content || '').replace(/\r\n/g, '\n').split('\n').map((line) => {
+    const heading = line.match(/^#{1,6}\s+(.*)$/);
+    if (heading) return `<div class="chat-answer-heading">${inline(heading[1])}</div>`;
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) return `<div class="chat-answer-bullet"><span>•</span><span>${inline(bullet[1])}</span></div>`;
+    if (!line.trim()) return '<div class="chat-answer-gap"></div>';
+    return `<div>${inline(line)}</div>`;
+  }).join('');
 }
 
 function chatContext(index) {
@@ -586,7 +605,7 @@ function renderChat(focusInput = false) {
     return;
   }
   const chat = currentChat();
-  const messages = chat.messages.map((message) => `<div class="chat-message ${message.role}">${escapeHTML(message.content)}</div>`).join('');
+  const messages = chat.messages.map((message) => `<div class="chat-message ${message.role}">${chatMessageHTML(message.content)}</div>`).join('');
   const empty = messages ? '' : `<div class="chat-empty"><strong>Ask about this lyric</strong><span>Grammar, meaning, pronunciation, culture, or what people would actually say.</span><div class="chat-prompts">
     <button class="chat-prompt" type="button">Break down the grammar</button>
     <button class="chat-prompt" type="button">Would people say this in daily life?</button>
@@ -751,7 +770,7 @@ async function loadTrack(track) {
     state.lyrics = lyrics;
     if (!state.lyrics.lines.length) throw new Error('This track is instrumental.');
     renderLyrics();
-    elements.analyzeButton.hidden = false;
+    syncAnalyzeButtonVisibility();
     await analyzeCurrentSong(true);
   } catch (error) {
     if (token !== state.loadToken) return;
@@ -762,7 +781,7 @@ async function loadTrack(track) {
 
 async function analyzeCurrentSong(automatic = false) {
   if (!state.lyrics?.lines?.length || state.analysis) return;
-  elements.analyzeButton.hidden = false;
+  syncAnalyzeButtonVisibility();
   elements.analyzeButton.disabled = true;
   state.isAnalyzing = true;
   startAnalysisTimer();
@@ -800,6 +819,7 @@ async function analyzeCurrentSong(automatic = false) {
     const message = String(error.message || 'Translation failed. Please try again.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
     if (state.coachMode === 'chat') renderChat();
     else elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
+    syncAnalyzeButtonVisibility();
     if (!automatic || !/API key/i.test(message)) showToast(message, 6000);
   }
 }
