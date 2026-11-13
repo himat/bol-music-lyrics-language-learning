@@ -87,6 +87,20 @@ const flashcardExamplesSchema = {
   },
 };
 
+const lyricChatSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['answer'],
+  properties: { answer: { type: 'string' } },
+};
+
+function trimChatHistory(messages, limit = 8) {
+  return (Array.isArray(messages) ? messages : [])
+    .filter((message) => ['user', 'assistant'].includes(message?.role) && typeof message?.content === 'string' && message.content.trim())
+    .slice(-limit)
+    .map(({ role, content }) => ({ role, content: content.trim() }));
+}
+
 async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens }) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -167,6 +181,23 @@ function createCoach({ apiKey, model, targetLanguage }) {
         maxOutputTokens: 1200,
       });
     },
+    async answerLyricQuestion({ track, focus, nearby, history, question }) {
+      return requestStructured({
+        apiKey,
+        model,
+        instructions: `You are a patient language tutor helping an adult learn ${targetLanguage || 'Hindi'} for natural daily conversation. Answer the learner's exact question about the supplied lyric. Use the focused line, its English translation, romanization, per-word meanings, usage analysis, and nearby lines as context. Clearly distinguish Hindi, Punjabi, Urdu, English, and other languages rather than treating similar vocabulary as Hindi. Explain grammar, vocabulary, pronunciation, idiom, cultural context, and whether wording is natural in daily speech when relevant. Include native script, readable romanization, and concise English examples when useful. Be direct and concise. Do not invent facts or quote lyrics beyond the supplied context; say when the supplied context is insufficient.`,
+        input: {
+          track: { title: track?.title || '', artist: track?.artist || '' },
+          focus,
+          nearby,
+          conversation: trimChatHistory(history),
+          question: String(question || '').trim(),
+        },
+        name: 'lyric_tutor_answer',
+        schema: lyricChatSchema,
+        maxOutputTokens: 1200,
+      });
+    },
   };
 }
 
@@ -240,4 +271,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, flashcardExamplesSchema, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };
+module.exports = { createCoach, analysisSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };

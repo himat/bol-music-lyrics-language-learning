@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractOutputText, planAnalysis, analysisSchema, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
+const { extractOutputText, planAnalysis, analysisSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -42,6 +42,22 @@ test('requires a per-line language and target-language fit', () => {
   assert.ok(lineSchema.required.includes('dailyAlternativeWordGlosses'));
   assert.ok(lineSchema.properties.wordGlosses.items.required.includes('romanization'));
   assert.deepEqual(lineSchema.properties.targetLanguageFit.enum, ['target', 'mixed', 'other', 'unclear']);
+});
+
+test('keeps only recent valid turns for lyric chat context', () => {
+  const messages = [
+    { role: 'system', content: 'ignore' },
+    { role: 'user', content: '  first  ' },
+    { role: 'assistant', content: 'answer' },
+    { role: 'user', content: '' },
+    { role: 'user', content: 'latest' },
+  ];
+  assert.deepEqual(trimChatHistory(messages, 2), [
+    { role: 'assistant', content: 'answer' },
+    { role: 'user', content: 'latest' },
+  ]);
+  assert.deepEqual(lyricChatSchema.required, ['answer']);
+  assert.equal(lyricChatSchema.additionalProperties, false);
 });
 
 test('finds every lyric word missing from model glosses', () => {

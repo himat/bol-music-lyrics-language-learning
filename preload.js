@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('bol', {
   spotifySeek: (positionMs, shouldPlay) => ipcRenderer.invoke('spotify:seek', positionMs, shouldPlay),
   fetchLyrics: (track) => ipcRenderer.invoke('lyrics:fetch', track),
   analyze: (payload) => ipcRenderer.invoke('coach:analyze', payload),
+  askCoach: (payload) => ipcRenderer.invoke('coach:chat', payload),
   listFlashcards: () => ipcRenderer.invoke('flashcards:list'),
   saveFlashcard: (payload) => ipcRenderer.invoke('flashcards:save', payload),
   generateFlashcardExamples: (payload) => ipcRenderer.invoke('flashcards:examples', payload),

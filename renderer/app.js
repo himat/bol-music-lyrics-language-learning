@@ -1,6 +1,6 @@
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
-  'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachPanel','coachBody',
+  'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachPanel','coachBody','coachModeButton','chatModeButton',
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton','repeatButton',
   'flashcardsButton','flashcardCount','flashcardsDialog','flashcardsCloseButton','browseFlashcardsTab','studyFlashcardsTab',
@@ -17,12 +17,33 @@ const state = {
   repeatMode: 'off', repeatRestarting: false,
   flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
   flashcardGenerationKeys: new Set(), studyRatingInFlight: false,
+  coachMode: 'coach', coachIndex: -1, coachPinned: false,
+  chats: {}, chatSending: false, chatError: '',
 };
 let spotifyPollTimer = null;
 let tickTimer = null;
 let coachHoverExitTimer = null;
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
+const chatStorageKey = 'bol:lyric-chats:v1';
+
+function loadChats() {
+  try { return JSON.parse(localStorage.getItem(chatStorageKey) || '{}'); } catch { return {}; }
+}
+
+function saveChats() {
+  const entries = Object.entries(state.chats)
+    .filter(([, chat]) => Array.isArray(chat?.messages) && chat.messages.length)
+    .sort(([, left], [, right]) => (right.updatedAt || 0) - (left.updatedAt || 0))
+    .slice(0, 20);
+  localStorage.setItem(chatStorageKey, JSON.stringify(Object.fromEntries(entries)));
+}
+
+function currentChat() {
+  const key = trackKey(state.track);
+  state.chats[key] ||= { messages: [], draft: '', updatedAt: Date.now() };
+  return state.chats[key];
+}
 function formatTime(ms) { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
 function estimatedPosition() {
   const drift = state.track.isPlaying ? Date.now() - state.positionObservedAt : 0;
@@ -452,6 +473,7 @@ function renderLyrics() {
     else translation.innerHTML = '<span class="translation-placeholder"></span>';
     row.append(original, translation);
     row.addEventListener('mouseenter', () => {
+      if (state.programmaticScroll) return;
       cancelCoachHoverExit();
       selectCoachLine(line.index, true);
     });
@@ -461,8 +483,10 @@ function renderLyrics() {
   }
   updateRows();
   renderCurrentLineDock();
-  if (!state.analysis) {
+  if (!state.analysis && state.coachMode === 'coach') {
     elements.coachBody.innerHTML = '<div class="coach-intro"><p>Add an API key, then analyze the song to get English translations and daily-speech guidance.</p></div>';
+  } else if (state.coachMode === 'chat') {
+    renderChat();
   }
 }
 
@@ -474,11 +498,11 @@ function cancelCoachHoverExit() {
 function scheduleCoachHoverExit() {
   cancelCoachHoverExit();
   coachHoverExitTimer = setTimeout(() => {
-    if (elements.coachPanel.matches(':hover') || elements.lyricsScroll.matches(':hover')) return;
+    if (state.coachPinned || elements.lyricsScroll.matches(':hover')) return;
     state.hoveredIndex = null;
     updateRows();
     selectCoachLine(state.activeIndex, false);
-  }, 1500);
+  }, 700);
 }
 
 function renderCurrentLineDock() {
@@ -511,11 +535,116 @@ function resumeLiveLine() {
   if (state.activeIndex < 0) return;
   cancelCoachHoverExit();
   clearTimeout(state.browseTimer);
+  state.coachPinned = false;
   state.hoveredIndex = null;
   state.userBrowsing = false;
   updateRows();
   selectCoachLine(state.activeIndex, false);
   scrollToActive();
+}
+
+function setCoachMode(mode, focusInput = false) {
+  state.coachMode = mode;
+  elements.coachModeButton.classList.toggle('active', mode === 'coach');
+  elements.chatModeButton.classList.toggle('active', mode === 'chat');
+  if (mode === 'chat') renderChat(focusInput);
+  else selectCoachLine(state.coachIndex >= 0 ? state.coachIndex : state.activeIndex, false);
+}
+
+function chatContext(index) {
+  const line = state.lyrics.lines.find((item) => item.index === index);
+  if (!line) return null;
+  const analysis = analysisFor(index);
+  const nearby = state.lyrics.lines
+    .filter((item) => Math.abs(item.index - index) <= 2 && item.index !== index)
+    .map((item) => {
+      const itemAnalysis = analysisFor(item.index);
+      return { index: item.index, text: item.text, translation: itemAnalysis?.translation || '', language: itemAnalysis?.language || '' };
+    });
+  return {
+    line,
+    focus: {
+      index,
+      text: line.text,
+      translation: analysis?.translation || '',
+      romanization: analysis?.romanization || '',
+      language: analysis?.language || '',
+      register: analysis?.register || '',
+      explanation: analysis?.explanation || '',
+      dailyAlternative: analysis?.dailyAlternative || '',
+      dailyAlternativeTranslation: analysis?.dailyAlternativeTranslation || '',
+      wordGlosses: analysis?.wordGlosses || [],
+    },
+    nearby,
+  };
+}
+
+function renderChat(focusInput = false) {
+  const context = chatContext(state.coachIndex >= 0 ? state.coachIndex : state.activeIndex);
+  if (!context) {
+    elements.coachBody.innerHTML = '<div class="coach-intro"><p>Play a song, then ask about the lyric you are looking at.</p></div>';
+    return;
+  }
+  const chat = currentChat();
+  const messages = chat.messages.map((message) => `<div class="chat-message ${message.role}">${escapeHTML(message.content)}</div>`).join('');
+  const empty = messages ? '' : `<div class="chat-empty"><strong>Ask about this lyric</strong><span>Grammar, meaning, pronunciation, culture, or what people would actually say.</span><div class="chat-prompts">
+    <button class="chat-prompt" type="button">Break down the grammar</button>
+    <button class="chat-prompt" type="button">Would people say this in daily life?</button>
+    <button class="chat-prompt" type="button">Explain every word</button>
+  </div></div>`;
+  const thinking = state.chatSending ? '<div class="chat-message assistant chat-thinking" aria-label="Thinking"><i></i><i></i><i></i></div>' : '';
+  const error = state.chatError ? `<div class="chat-error">${escapeHTML(state.chatError)}</div>` : '';
+  elements.coachBody.innerHTML = `<div class="chat-shell">
+    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.line.text)}</strong>${context.focus.translation ? `<span>${escapeHTML(context.focus.translation)}</span>` : ''}</div>
+    <div class="chat-messages">${empty}${messages}${thinking}${error}</div>
+    <form class="chat-composer"><textarea rows="1" aria-label="Ask about this lyric" placeholder="Ask about this lyric…">${escapeHTML(chat.draft || '')}</textarea><button class="chat-send" type="submit" aria-label="Send question" ${state.chatSending ? 'disabled' : ''}>↑</button></form>
+  </div>`;
+  const messageList = elements.coachBody.querySelector('.chat-messages');
+  messageList.scrollTop = messageList.scrollHeight;
+  const textarea = elements.coachBody.querySelector('textarea');
+  textarea.addEventListener('input', () => { chat.draft = textarea.value; chat.updatedAt = Date.now(); saveChats(); });
+  textarea.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      elements.coachBody.querySelector('.chat-composer').requestSubmit();
+    }
+  });
+  elements.coachBody.querySelector('.chat-composer').addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendChatQuestion(textarea.value);
+  });
+  for (const prompt of elements.coachBody.querySelectorAll('.chat-prompt')) prompt.addEventListener('click', () => sendChatQuestion(prompt.textContent));
+  if (focusInput) textarea.focus();
+}
+
+async function sendChatQuestion(rawQuestion) {
+  const question = String(rawQuestion || '').trim();
+  const index = state.coachIndex >= 0 ? state.coachIndex : state.activeIndex;
+  const context = chatContext(index);
+  if (!question || !context || state.chatSending) return;
+  state.coachPinned = true;
+  const chat = currentChat();
+  const previousHistory = chat.messages.slice(-8).map(({ role, content }) => ({ role, content }));
+  chat.messages.push({ role: 'user', content: question, lineIndex: index, createdAt: Date.now() });
+  chat.messages = chat.messages.slice(-40);
+  chat.draft = '';
+  chat.updatedAt = Date.now();
+  state.chatSending = true;
+  state.chatError = '';
+  saveChats();
+  renderChat();
+  try {
+    const result = await window.bol.askCoach({ track: state.track, focus: context.focus, nearby: context.nearby, history: previousHistory, question });
+    chat.messages.push({ role: 'assistant', content: result.answer, lineIndex: index, createdAt: Date.now() });
+    chat.messages = chat.messages.slice(-40);
+    chat.updatedAt = Date.now();
+    saveChats();
+  } catch (error) {
+    state.chatError = String(error.message || 'Could not answer that question.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
+  } finally {
+    state.chatSending = false;
+    renderChat(true);
+  }
 }
 
 function updateRows() {
@@ -529,6 +658,12 @@ function updateRows() {
 function selectCoachLine(index, hovered = false) {
   if (hovered) state.hoveredIndex = index;
   updateRows();
+  if (state.coachPinned && index !== state.coachIndex) return;
+  state.coachIndex = index;
+  if (state.coachMode === 'chat') {
+    renderChat();
+    return;
+  }
   const line = state.lyrics.lines.find((item) => item.index === index);
   const analysis = analysisFor(index);
   if (!line || !analysis) {
@@ -560,6 +695,7 @@ function selectCoachLine(index, hovered = false) {
     <p class="coach-translation">“${escapeHTML(analysis.translation)}”</p>
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>
     ${alternative}
+    <button class="ask-line-button" type="button">✦ Ask a follow-up</button>
   </div>`;
   const quoteContainer = elements.coachBody.querySelector('.coach-quote');
   if (quoteContainer) attachCoachWordActions(quoteContainer, {
@@ -573,6 +709,7 @@ function selectCoachLine(index, hovered = false) {
     translation: analysis.dailyAlternativeTranslation,
     language: state.settings.targetLanguage,
   });
+  elements.coachBody.querySelector('.ask-line-button').addEventListener('click', () => setCoachMode('chat', true));
 }
 
 function escapeHTML(value = '') { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
@@ -582,7 +719,8 @@ function setEmpty(title, message) {
   elements.emptyState.hidden = false;
   elements.emptyTitle.textContent = title;
   elements.emptyMessage.textContent = message;
-  elements.coachBody.innerHTML = '<div class="coach-intro"><p>Play a song to begin learning.</p></div>';
+  if (state.coachMode === 'chat') renderChat();
+  else elements.coachBody.innerHTML = '<div class="coach-intro"><p>Play a song to begin learning.</p></div>';
   elements.currentLineDock.hidden = true;
   elements.syncStatus.hidden = true;
 }
@@ -602,6 +740,9 @@ async function loadTrack(track) {
   elements.languageDetectionStatus.hidden = true;
   state.activeIndex = -1;
   state.hoveredIndex = null;
+  state.coachIndex = -1;
+  state.coachPinned = false;
+  state.chatError = '';
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
   try {
@@ -630,7 +771,7 @@ async function analyzeCurrentSong(automatic = false) {
   elements.languageDetectionStatus.textContent = 'Detecting languages…';
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   elements.translationStatus.hidden = false;
-  elements.coachBody.innerHTML = `<div class="analysis-loading">
+  if (state.coachMode === 'coach') elements.coachBody.innerHTML = `<div class="analysis-loading">
     <span class="analysis-spinner"></span>
     <strong>Translating this song</strong>
     <p>Checking each lyric for its English meaning, language, and whether people actually say it.</p>
@@ -657,7 +798,8 @@ async function analyzeCurrentSong(automatic = false) {
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
     elements.translationStatus.hidden = true;
     const message = String(error.message || 'Translation failed. Please try again.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
-    elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
+    if (state.coachMode === 'chat') renderChat();
+    else elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
     if (!automatic || !/API key/i.test(message)) showToast(message, 6000);
   }
 }
@@ -791,8 +933,8 @@ function tick() {
       state.programmaticScroll = true;
       row.scrollIntoView({ block: 'center', behavior: 'smooth' });
       setTimeout(() => { state.programmaticScroll = false; }, 650);
-      selectCoachLine(next, false);
     }
+    if (!state.coachPinned) selectCoachLine(next, false);
   }
 }
 
@@ -837,6 +979,8 @@ elements.homeButton.addEventListener('click', pollSpotify);
 elements.spotifyButton.addEventListener('click', () => state.track.spotifyUrl && window.bol.openExternal(state.track.spotifyUrl));
 elements.apiKeyHelp.addEventListener('click', () => window.bol.openExternal('https://platform.openai.com/api-keys'));
 elements.analyzeButton.addEventListener('click', () => analyzeCurrentSong(false));
+elements.coachModeButton.addEventListener('click', () => setCoachMode('coach'));
+elements.chatModeButton.addEventListener('click', () => setCoachMode('chat', true));
 elements.previousButton.addEventListener('click', () => controlPlayback('previous'));
 elements.playPauseButton.addEventListener('click', () => controlPlayback('playPause'));
 elements.nextButton.addEventListener('click', () => controlPlayback('next'));
@@ -891,8 +1035,14 @@ document.addEventListener('visibilitychange', () => {
   scheduleSpotifyPoll(document.hidden ? 10000 : 0);
   scheduleTick(0);
 });
-elements.coachPanel.addEventListener('mouseenter', cancelCoachHoverExit);
-elements.coachPanel.addEventListener('mouseleave', scheduleCoachHoverExit);
+elements.coachPanel.addEventListener('pointerdown', () => {
+  state.coachPinned = true;
+  cancelCoachHoverExit();
+});
+elements.coachPanel.addEventListener('focusin', () => {
+  state.coachPinned = true;
+  cancelCoachHoverExit();
+});
 document.addEventListener('pointermove', (event) => {
   const word = event.target.closest?.('.coach-word, .lyric-word');
   if (word) positionGlossAbovePointer(word, event);
@@ -914,6 +1064,7 @@ elements.settingsForm.addEventListener('submit', async (event) => {
 });
 
 async function init() {
+  state.chats = loadChats();
   state.settings = await window.bol.loadSettings();
   state.flashcards = await window.bol.listFlashcards();
   updateFlashcardCount();

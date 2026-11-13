@@ -136,6 +136,12 @@ app.whenReady().then(() => {
     await writeAnalysisCache(analysisCachePath(), key, analysis);
     return analysis;
   });
+  ipcMain.handle('coach:chat', async (_event, payload) => {
+    const settings = await loadSettings();
+    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to ask questions about lyrics.');
+    return createCoach({ ...settings, apiKey }).answerLyricQuestion(payload);
+  });
   ipcMain.handle('flashcards:list', async () => (await readFlashcards(flashcardsPath())).cards.map(presentFlashcard));
   ipcMain.handle('flashcards:save', (_event, payload) => serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), payload))));
   ipcMain.handle('flashcards:examples', async (_event, payload) => {
