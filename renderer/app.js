@@ -760,8 +760,9 @@ function renderChat(focusInput = false) {
   </div></div>`;
   const thinking = state.chatSending ? '<div class="chat-message assistant chat-thinking" aria-label="Thinking"><i></i><i></i><i></i></div>' : '';
   const error = state.chatError ? `<div class="chat-error">${escapeHTML(state.chatError)}</div>` : '';
+  const focusWords = glossedWordsHTML(context.focus.nativeScript, { wordGlosses: context.focus.wordGlosses }, 'chat-context-word');
   elements.coachBody.innerHTML = `<div class="chat-shell">
-    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.focus.nativeScript)}</strong>${context.focus.romanization ? `<span class="chat-context-romanization">${escapeHTML(lowercaseRomanization(context.focus.romanization))}</span>` : ''}${context.focus.translation ? `<span class="chat-context-translation">${escapeHTML(context.focus.translation)}</span>` : ''}</div>
+    <div class="chat-context"><small>ASKING ABOUT</small><strong>${focusWords}</strong>${context.focus.romanization ? `<span class="chat-context-romanization">${escapeHTML(lowercaseRomanization(context.focus.romanization))}</span>` : ''}${context.focus.translation ? `<span class="chat-context-translation">${escapeHTML(context.focus.translation)}</span>` : ''}</div>
     <div class="chat-messages">${empty}${messages}${thinking}${error}</div>
     <form class="chat-composer"><textarea rows="1" aria-label="Ask about this lyric" placeholder="Ask about this lyric…">${escapeHTML(chat.draft || '')}</textarea><button class="chat-send" type="submit" aria-label="Send question" ${state.chatSending ? 'disabled' : ''}>↑</button></form>
   </div>`;
@@ -1229,7 +1230,7 @@ elements.coachPanel.addEventListener('focusin', () => {
   cancelCoachHoverExit();
 });
 document.addEventListener('pointermove', (event) => {
-  const word = event.target.closest?.('.coach-word, .lyric-word');
+  const word = event.target.closest?.('.coach-word, .lyric-word, .chat-context-word');
   if (word) positionGlossAbovePointer(word, event);
 });
 elements.settingsForm.addEventListener('submit', async (event) => {

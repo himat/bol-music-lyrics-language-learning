@@ -201,6 +201,10 @@ button { color: inherit; }
 .chat-context { padding: 11px 12px; background: rgba(143,214,255,.045); border: 1px solid rgba(143,214,255,.15); border-radius: 11px; }
 .chat-context small { display: block; margin-bottom: 6px; color: var(--sky); font-size: 8px; font-weight: 700; letter-spacing: .1em; }
 .chat-context strong { display: block; color: var(--ink); font: 600 13px/1.4 Georgia, serif; }
+.chat-context-word { position: relative; border-bottom: 1px dotted rgba(143,214,255,.45); cursor: help; transition: color .12s, border-color .12s; }
+.chat-context-word:hover { z-index: 9; color: var(--sky); border-color: currentColor; }
+.chat-context-word::after { content: attr(data-gloss); position: fixed; z-index: 30; left: var(--gloss-x, 50vw); top: var(--gloss-y, 50vh); width: max-content; max-width: 210px; padding: 7px 9px; color: #171713; background: var(--sky); border-radius: 8px; box-shadow: 0 9px 26px rgba(0,0,0,.4); font: 600 11px/1.35 -apple-system, sans-serif; text-align: center; white-space: normal; opacity: 0; pointer-events: none; transform: translate(-50%, calc(-100% + 3px)); transition: opacity .12s, transform .12s; }
+.chat-context-word:hover::after { opacity: 1; transform: translate(-50%, -100%); }
 .chat-context span { display: block; margin-top: 4px; color: #898881; font-size: 10px; line-height: 1.4; }
 .chat-context .chat-context-romanization { color: var(--sky); }
 .chat-context .chat-context-translation { color: #aaa9a2; }
