@@ -184,14 +184,15 @@ button { color: inherit; }
 .coach-word.saved { color: var(--lime); border-color: currentColor; }
 .coach-word.saved::before { content: '✓'; position: absolute; right: -5px; top: -7px; display: grid; width: 10px; height: 10px; place-items: center; color: #171713; background: var(--lime); border-radius: 50%; font: 800 7px/1 -apple-system, sans-serif; }
 .coach-word.saving { opacity: .55; cursor: wait; }
-.coach-translation { margin: 0 0 18px; color: #aaa9a3; font: italic 15px/1.4 Georgia, serif; }
+.coach-translation { display: grid; gap: 4px; margin: 0 0 18px; color: #c8c6be; font-size: 14px; line-height: 1.4; }
+.coach-translation small { color: #77766f; font-size: 9px; font-weight: 650; letter-spacing: .1em; }
 .explanation-block { padding: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 12px; }
 .explanation-block small { display: block; margin-bottom: 6px; color: #77766f; font-size: 9px; letter-spacing: .1em; }
 .explanation-block p { margin: 0; color: #bbb9b1; font-size: 12px; line-height: 1.5; }
 .alternative { margin-top: 13px; padding-left: 12px; border-left: 2px solid var(--lime); }
 .alternative small { color: var(--lime); font-size: 9px; letter-spacing: .1em; }
 .alternative p { margin: 5px 0 0; font-size: 13px; line-height: 1.4; }
-.alternative-translation { display: block; margin-top: 5px; color: #8e8d86; font: italic 11px/1.4 Georgia, serif; }
+.alternative-translation { display: block; margin-top: 5px; color: #9f9e97; font: 11px/1.4 -apple-system, sans-serif; }
 .ask-line-button { width: 100%; margin-top: 14px; padding: 9px 10px; color: var(--lime); background: rgba(217,255,115,.05); border: 1px solid rgba(217,255,115,.18); border-radius: 9px; font-size: 11px; font-weight: 650; cursor: pointer; }
 .ask-line-button:hover { background: rgba(217,255,115,.1); }
 .coach-body:has(.chat-shell) { overflow: hidden; }
