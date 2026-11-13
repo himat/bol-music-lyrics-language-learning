@@ -177,7 +177,7 @@ function appendGlossedWords(container, text, analysis, className = 'lyric-word')
     const word = document.createElement('span');
     word.className = className;
     word.textContent = segment;
-    const romanization = gloss.romanization || segment;
+    const romanization = lowercaseRomanization(gloss.romanization || segment);
     word.dataset.gloss = `${romanization} · ${gloss.meaning}`;
     word.dataset.word = gloss.word || segment;
     word.dataset.romanization = romanization;
@@ -228,7 +228,7 @@ function phrasePayload(text, analysis, context = {}) {
     kind: 'phrase',
     word: text,
     nativeScript: text,
-    romanization: analysis.romanization || '',
+    romanization: lowercaseRomanization(analysis.romanization),
     meaning: analysis.translation || '',
     language: analysis.language || state.settings.targetLanguage || 'Unknown',
     context: {
@@ -343,9 +343,9 @@ function renderFlashcardDetail(card) {
     return;
   }
   const contexts = (card.contexts || []).map((context) => `<div class="context-card"><p>${escapeHTML(context.text)}</p><em>${escapeHTML(context.translation)}</em><small>${escapeHTML([context.songTitle, context.artist].filter(Boolean).join(' · '))}</small></div>`).join('');
-  const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${escapeHTML(example.text)}</p><em class="example-romanization">${escapeHTML(example.romanization)}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
+  const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${escapeHTML(example.text)}</p><em class="example-romanization">${escapeHTML(lowercaseRomanization(example.romanization))}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
   const itemLabel = card.kind === 'phrase' ? 'phrase' : 'word';
-  elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><small class="vocabulary-kind">${itemLabel}</small><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(card.romanization)}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove ${itemLabel}</button></div>
+  elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><small class="vocabulary-kind">${itemLabel}</small><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(lowercaseRomanization(card.romanization))}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove ${itemLabel}</button></div>
     <div class="flashcard-section"><small>WHERE YOU HEARD IT</small>${contexts || '<div class="context-card"><p>No source phrase saved.</p></div>'}</div>
     <div class="flashcard-section"><small>EVERYDAY CONVERSATION</small>${examples || `<button class="retry-examples" data-retry-card="${escapeHTML(card.id)}">Generate daily examples</button>`}</div>`;
   elements.flashcardDetail.querySelector('[data-delete-card]')?.addEventListener('click', () => removeFlashcard(card.id));
@@ -363,7 +363,7 @@ function renderFlashcards() {
     return;
   }
   if (!state.flashcards.some((card) => card.id === state.selectedFlashcardId)) state.selectedFlashcardId = state.flashcards[0].id;
-  elements.flashcardsList.innerHTML = state.flashcards.map((card) => `<button class="flashcard-list-item ${card.id === state.selectedFlashcardId ? 'active' : ''}" data-card-id="${escapeHTML(card.id)}"><strong>${escapeHTML(card.nativeScript || card.word)}</strong><span>${escapeHTML(card.romanization)}${card.romanization && card.meaning ? ' · ' : ''}${escapeHTML(card.meaning)}</span><small>${escapeHTML(card.language)} · ${card.kind === 'phrase' ? 'phrase' : 'word'}</small></button>`).join('');
+  elements.flashcardsList.innerHTML = state.flashcards.map((card) => `<button class="flashcard-list-item ${card.id === state.selectedFlashcardId ? 'active' : ''}" data-card-id="${escapeHTML(card.id)}"><strong>${escapeHTML(card.nativeScript || card.word)}</strong><span>${escapeHTML(lowercaseRomanization(card.romanization))}${card.romanization && card.meaning ? ' · ' : ''}${escapeHTML(card.meaning)}</span><small>${escapeHTML(card.language)} · ${card.kind === 'phrase' ? 'phrase' : 'word'}</small></button>`).join('');
   for (const button of elements.flashcardsList.querySelectorAll('[data-card-id]')) {
     button.addEventListener('click', () => {
       state.selectedFlashcardId = button.dataset.cardId;
@@ -465,7 +465,7 @@ function renderStudyView() {
   const source = card.contexts?.[0];
   const intervals = card.ratingIntervals || { again: '1m', hard: '6m', good: '10m', easy: '4d' };
   const ratingButton = (rating, label) => `<button class="rating-answer ${rating}-answer" data-study-rating="${rating}"><small>${escapeHTML(intervals[rating])}</small><span>${label}</span></button>`;
-  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(card.romanization)}</strong><p>${escapeHTML(card.meaning)}</p>${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions rating-actions">${ratingButton('again', 'Again')}${ratingButton('hard', 'Hard')}${ratingButton('good', 'Good')}${ratingButton('easy', 'Easy')}</div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
+  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(lowercaseRomanization(card.romanization))}</strong><p>${escapeHTML(card.meaning)}</p>${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions rating-actions">${ratingButton('again', 'Again')}${ratingButton('hard', 'Hard')}${ratingButton('good', 'Good')}${ratingButton('easy', 'Easy')}</div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
   elements.flashcardsStudyView.innerHTML = `<div class="study-card"><span class="study-progress">${due.length} due · What does this mean?</span><h3>${escapeHTML(card.nativeScript || card.word)}</h3><span class="study-prompt">Say the meaning and pronunciation before revealing it</span>${answer}</div>`;
   elements.flashcardsStudyView.querySelector('#revealFlashcardAnswer')?.addEventListener('click', revealStudyAnswer);
   for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-rating]')) button.addEventListener('click', () => rateStudyCard(button.dataset.studyRating));
@@ -661,7 +661,7 @@ function chatLanguageBlocksHTML(blocks = []) {
   return blocks.map((block) => `<div class="chat-language-block">
     ${block.label ? `<small>${escapeHTML(block.label)}</small>` : ''}
     <strong>${escapeHTML(block.nativeScript)}</strong>
-    <span class="chat-block-romanization">${escapeHTML(block.romanization)}</span>
+    <span class="chat-block-romanization">${escapeHTML(lowercaseRomanization(block.romanization))}</span>
     <span class="chat-block-translation">${escapeHTML(block.translation)}</span>
   </div>`).join('');
 }
@@ -723,7 +723,7 @@ function renderChat(focusInput = false) {
   const thinking = state.chatSending ? '<div class="chat-message assistant chat-thinking" aria-label="Thinking"><i></i><i></i><i></i></div>' : '';
   const error = state.chatError ? `<div class="chat-error">${escapeHTML(state.chatError)}</div>` : '';
   elements.coachBody.innerHTML = `<div class="chat-shell">
-    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.focus.nativeScript)}</strong>${context.focus.romanization ? `<span class="chat-context-romanization">${escapeHTML(context.focus.romanization)}</span>` : ''}${context.focus.translation ? `<span class="chat-context-translation">${escapeHTML(context.focus.translation)}</span>` : ''}</div>
+    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.focus.nativeScript)}</strong>${context.focus.romanization ? `<span class="chat-context-romanization">${escapeHTML(lowercaseRomanization(context.focus.romanization))}</span>` : ''}${context.focus.translation ? `<span class="chat-context-translation">${escapeHTML(context.focus.translation)}</span>` : ''}</div>
     <div class="chat-messages">${empty}${messages}${thinking}${error}</div>
     <form class="chat-composer"><textarea rows="1" aria-label="Ask about this lyric" placeholder="Ask about this lyric…">${escapeHTML(chat.draft || '')}</textarea><button class="chat-send" type="submit" aria-label="Send question" ${state.chatSending ? 'disabled' : ''}>↑</button></form>
   </div>`;
@@ -857,6 +857,7 @@ function selectCoachLine(index, hovered = false) {
 }
 
 function escapeHTML(value = '') { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
+function lowercaseRomanization(value = '') { return String(value).toLocaleLowerCase('en'); }
 
 function setEmpty(title, message) {
   elements.lyricsScroll.hidden = true;

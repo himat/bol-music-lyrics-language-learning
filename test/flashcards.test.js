@@ -5,9 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, normalizeRomanization } = require('../src/flashcards');
 
-test('normalizes non-English romanization to sentence case', () => {
-  assert.equal(normalizeRomanization('Agar tum Sath ho', 'Hindi'), 'Agar tum sath ho');
-  assert.equal(normalizeRomanization('MUJHE Delhi JAANA HAI', 'Hindi'), 'Mujhe delhi jaana hai');
+test('normalizes every non-English romanization word to lowercase', () => {
+  assert.equal(normalizeRomanization('Agar tum Sath ho', 'Hindi'), 'agar tum sath ho');
+  assert.equal(normalizeRomanization('MUJHE Delhi JAANA HAI', 'Hindi'), 'mujhe delhi jaana hai');
   assert.equal(normalizeRomanization('API Response', 'English'), 'API Response');
 });
 

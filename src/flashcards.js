@@ -14,8 +14,7 @@ function normalizeWord(value) {
 function normalizeRomanization(value, language) {
   const romanization = clean(value);
   if (!romanization || normalizeWord(language) === 'english') return romanization;
-  const lower = romanization.toLocaleLowerCase('en');
-  return lower.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+  return romanization.toLocaleLowerCase('en');
 }
 
 function flashcardId(language, word) {
