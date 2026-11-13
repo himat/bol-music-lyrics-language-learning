@@ -10,9 +10,10 @@ const analysisSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['index', 'translation', 'romanization', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative', 'dailyAlternativeTranslation', 'dailyAlternativeWordGlosses', 'wordGlosses'],
+        required: ['index', 'nativeScript', 'translation', 'romanization', 'language', 'targetLanguageFit', 'register', 'explanation', 'dailyAlternative', 'dailyAlternativeTranslation', 'dailyAlternativeWordGlosses', 'wordGlosses'],
         properties: {
           index: { type: 'integer' },
+          nativeScript: { type: 'string' },
           translation: { type: 'string' },
           romanization: { type: 'string' },
           language: { type: 'string' },
@@ -93,8 +94,24 @@ const flashcardExamplesSchema = {
 const lyricChatSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['answer'],
-  properties: { answer: { type: 'string' } },
+  required: ['answer', 'languageBlocks'],
+  properties: {
+    answer: { type: 'string' },
+    languageBlocks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label', 'nativeScript', 'romanization', 'translation'],
+        properties: {
+          label: { type: 'string' },
+          nativeScript: { type: 'string' },
+          romanization: { type: 'string' },
+          translation: { type: 'string' },
+        },
+      },
+    },
+  },
 };
 
 function trimChatHistory(messages, limit = 8) {
@@ -133,7 +150,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
         let batch = await requestStructured({
           apiKey,
           model,
-          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
+          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For every line, return nativeScript as the complete original wording in its normal native script: use Devanagari for Hindi even when the supplied lyric is written in Latin transliteration, Gurmukhi for Punjabi, Perso-Arabic script for Urdu, and unchanged Latin text for English. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
           input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
           name: 'song_language_coach',
           schema: analysisSchema,
@@ -189,7 +206,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
       return requestStructured({
         apiKey,
         model,
-        instructions: `You are a patient language tutor helping an adult learn ${targetLanguage || 'Hindi'} for natural daily conversation. Answer the learner's exact question about the supplied lyric. Use the focused line, its English translation, romanization, per-word meanings, usage analysis, and nearby lines as context. Clearly distinguish Hindi, Punjabi, Urdu, English, and other languages rather than treating similar vocabulary as Hindi. Explain grammar, vocabulary, pronunciation, idiom, cultural context, and whether wording is natural in daily speech when relevant. Include native script, readable romanization, and concise English examples when useful. Be direct and concise. Format the answer as short plain-text paragraphs and simple hyphen bullets when useful. Do not use Markdown headings, bold markers, tables, or repeat a full focus-line analysis unless the learner asks for it. Do not invent facts or quote lyrics beyond the supplied context; say when the supplied context is insufficient.`,
+        instructions: `You are a patient language tutor helping an adult learn ${targetLanguage || 'Hindi'} for natural daily conversation. Answer the learner's exact question about the supplied lyric. Use the focused line, its native script, English translation, romanization, per-word meanings, usage analysis, and nearby lines as context. Clearly distinguish Hindi, Punjabi, Urdu, English, and other languages rather than treating similar vocabulary as Hindi. Explain grammar, vocabulary, pronunciation, idiom, cultural context, and whether wording is natural in daily speech when relevant. The answer field must contain concise English-only explanation: never put a Hindi word, transliteration, example, corrected phrase, or dialogue turn in answer. Put every target-language item in languageBlocks. Every language block must be ordered and populated as: nativeScript first (Devanagari for Hindi, even when the source is Latin transliteration), romanization second, and concise natural English translation third. For a conversation, return one block per speaker turn and put the speaker name such as A or B in label. For vocabulary or grammar explanations, return one block for every word or phrase you mention. Use an empty languageBlocks array only when the answer genuinely contains no target-language item. Be direct and concise. Do not use Markdown headings, bold markers, or tables in answer. Do not invent facts or quote lyrics beyond the supplied context; say when the supplied context is insufficient.`,
         input: {
           track: { title: track?.title || '', artist: track?.artist || '' },
           focus,

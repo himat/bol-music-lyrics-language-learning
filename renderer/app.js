@@ -657,6 +657,20 @@ function chatMessageHTML(content) {
   }).join('');
 }
 
+function chatLanguageBlocksHTML(blocks = []) {
+  return blocks.map((block) => `<div class="chat-language-block">
+    ${block.label ? `<small>${escapeHTML(block.label)}</small>` : ''}
+    <strong>${escapeHTML(block.nativeScript)}</strong>
+    <span class="chat-block-romanization">${escapeHTML(block.romanization)}</span>
+    <span class="chat-block-translation">${escapeHTML(block.translation)}</span>
+  </div>`).join('');
+}
+
+function chatHistoryContent(message) {
+  const blocks = (message.languageBlocks || []).map((block) => [block.label, block.nativeScript, block.romanization, block.translation].filter(Boolean).join(' | '));
+  return [message.content, ...blocks].filter(Boolean).join('\n');
+}
+
 function chatContext(index) {
   const line = state.lyrics.lines.find((item) => item.index === index);
   if (!line) return null;
@@ -665,13 +679,21 @@ function chatContext(index) {
     .filter((item) => Math.abs(item.index - index) <= 2 && item.index !== index)
     .map((item) => {
       const itemAnalysis = analysisFor(item.index);
-      return { index: item.index, text: item.text, translation: itemAnalysis?.translation || '', language: itemAnalysis?.language || '' };
+      return {
+        index: item.index,
+        text: item.text,
+        nativeScript: itemAnalysis?.nativeScript || item.text,
+        romanization: itemAnalysis?.romanization || '',
+        translation: itemAnalysis?.translation || '',
+        language: itemAnalysis?.language || '',
+      };
     });
   return {
     line,
     focus: {
       index,
       text: line.text,
+      nativeScript: analysis?.nativeScript || line.text,
       translation: analysis?.translation || '',
       romanization: analysis?.romanization || '',
       language: analysis?.language || '',
@@ -692,7 +714,7 @@ function renderChat(focusInput = false) {
     return;
   }
   const chat = currentChat();
-  const messages = chat.messages.map((message) => `<div class="chat-message ${message.role}">${chatMessageHTML(message.content)}</div>`).join('');
+  const messages = chat.messages.map((message) => `<div class="chat-message ${message.role}">${chatMessageHTML(message.content)}${chatLanguageBlocksHTML(message.languageBlocks)}</div>`).join('');
   const empty = messages ? '' : `<div class="chat-empty"><strong>Ask about this lyric</strong><span>Grammar, meaning, pronunciation, culture, or what people would actually say.</span><div class="chat-prompts">
     <button class="chat-prompt" type="button">Break down the grammar</button>
     <button class="chat-prompt" type="button">Would people say this in daily life?</button>
@@ -701,7 +723,7 @@ function renderChat(focusInput = false) {
   const thinking = state.chatSending ? '<div class="chat-message assistant chat-thinking" aria-label="Thinking"><i></i><i></i><i></i></div>' : '';
   const error = state.chatError ? `<div class="chat-error">${escapeHTML(state.chatError)}</div>` : '';
   elements.coachBody.innerHTML = `<div class="chat-shell">
-    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.line.text)}</strong>${context.focus.translation ? `<span>${escapeHTML(context.focus.translation)}</span>` : ''}</div>
+    <div class="chat-context"><small>ASKING ABOUT</small><strong>${escapeHTML(context.focus.nativeScript)}</strong>${context.focus.romanization ? `<span class="chat-context-romanization">${escapeHTML(context.focus.romanization)}</span>` : ''}${context.focus.translation ? `<span class="chat-context-translation">${escapeHTML(context.focus.translation)}</span>` : ''}</div>
     <div class="chat-messages">${empty}${messages}${thinking}${error}</div>
     <form class="chat-composer"><textarea rows="1" aria-label="Ask about this lyric" placeholder="Ask about this lyric…">${escapeHTML(chat.draft || '')}</textarea><button class="chat-send" type="submit" aria-label="Send question" ${state.chatSending ? 'disabled' : ''}>↑</button></form>
   </div>`;
@@ -730,7 +752,7 @@ async function sendChatQuestion(rawQuestion) {
   if (!question || !context || state.chatSending) return;
   state.coachPinned = true;
   const chat = currentChat();
-  const previousHistory = chat.messages.slice(-8).map(({ role, content }) => ({ role, content }));
+  const previousHistory = chat.messages.slice(-8).map((message) => ({ role: message.role, content: chatHistoryContent(message) }));
   chat.messages.push({ role: 'user', content: question, lineIndex: index, createdAt: Date.now() });
   chat.messages = chat.messages.slice(-40);
   chat.draft = '';
@@ -741,7 +763,7 @@ async function sendChatQuestion(rawQuestion) {
   renderChat();
   try {
     const result = await window.bol.askCoach({ track: state.track, focus: context.focus, nearby: context.nearby, history: previousHistory, question });
-    chat.messages.push({ role: 'assistant', content: result.answer, lineIndex: index, createdAt: Date.now() });
+    chat.messages.push({ role: 'assistant', content: result.answer, languageBlocks: result.languageBlocks, lineIndex: index, createdAt: Date.now() });
     chat.messages = chat.messages.slice(-40);
     chat.updatedAt = Date.now();
     saveChats();

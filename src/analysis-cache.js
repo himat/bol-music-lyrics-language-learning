@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const ANALYSIS_CACHE_VERSION = 'word-glosses-v1';
+const ANALYSIS_CACHE_VERSION = 'native-script-v2';
 
 function analysisCacheKey({ track, lines, model, targetLanguage }) {
   const identity = {

@@ -44,6 +44,7 @@ test('requires a per-line language and target-language fit', () => {
   assert.ok(lineSchema.required.includes('language'));
   assert.ok(lineSchema.required.includes('targetLanguageFit'));
   assert.ok(lineSchema.required.includes('wordGlosses'));
+  assert.ok(lineSchema.required.includes('nativeScript'));
   assert.ok(lineSchema.required.includes('romanization'));
   assert.ok(lineSchema.required.includes('dailyAlternativeWordGlosses'));
   assert.ok(lineSchema.properties.wordGlosses.items.required.includes('romanization'));
@@ -62,8 +63,9 @@ test('keeps only recent valid turns for lyric chat context', () => {
     { role: 'assistant', content: 'answer' },
     { role: 'user', content: 'latest' },
   ]);
-  assert.deepEqual(lyricChatSchema.required, ['answer']);
+  assert.deepEqual(lyricChatSchema.required, ['answer', 'languageBlocks']);
   assert.equal(lyricChatSchema.additionalProperties, false);
+  assert.deepEqual(lyricChatSchema.properties.languageBlocks.items.required, ['label', 'nativeScript', 'romanization', 'translation']);
 });
 
 test('finds every lyric word missing from model glosses', () => {
