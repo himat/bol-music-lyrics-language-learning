@@ -1027,11 +1027,11 @@ async function cycleRepeatMode() {
   state.repeatRestarting = false;
   renderRepeatControl();
   try {
-    await window.bol.spotifyControl(state.repeatMode === 'context' ? 'repeatContext' : 'repeatOff');
+    await window.bol.spotifyControl(state.repeatMode === 'off' ? 'repeatOff' : 'repeatContext');
     const messages = {
       off: 'Repeat off',
       context: 'Repeating this playlist or album',
-      track: 'Repeating this track while Bol is open',
+      track: 'Repeating this track · Spotify repeat is on',
     };
     showToast(messages[state.repeatMode]);
     scheduleSpotifyPoll(250);
