@@ -3,7 +3,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard } = require('../src/flashcards');
+const { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, normalizeRomanization } = require('../src/flashcards');
+
+test('normalizes non-English romanization to sentence case', () => {
+  assert.equal(normalizeRomanization('Agar tum Sath ho', 'Hindi'), 'Agar tum sath ho');
+  assert.equal(normalizeRomanization('MUJHE Delhi JAANA HAI', 'Hindi'), 'Mujhe delhi jaana hai');
+  assert.equal(normalizeRomanization('API Response', 'English'), 'API Response');
+});
 
 test('saves one card per language and word while merging source contexts', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-flashcards-'));

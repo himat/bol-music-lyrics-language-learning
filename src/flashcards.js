@@ -11,6 +11,13 @@ function normalizeWord(value) {
   return clean(value).normalize('NFKC').toLocaleLowerCase();
 }
 
+function normalizeRomanization(value, language) {
+  const romanization = clean(value);
+  if (!romanization || normalizeWord(language) === 'english') return romanization;
+  const lower = romanization.toLocaleLowerCase('en');
+  return lower.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+}
+
 function flashcardId(language, word) {
   return crypto.createHash('sha256').update(`${normalizeWord(language)}\0${normalizeWord(word)}`).digest('hex').slice(0, 20);
 }
@@ -50,10 +57,10 @@ function sanitizeContext(context = {}) {
   };
 }
 
-function sanitizeExamples(examples = []) {
+function sanitizeExamples(examples = [], language = '') {
   return examples.slice(0, 3).map((example) => ({
     text: clean(example.text),
-    romanization: clean(example.romanization),
+    romanization: normalizeRomanization(example.romanization, language),
     translation: clean(example.translation),
   })).filter((example) => example.text && example.translation);
 }
@@ -67,15 +74,16 @@ async function upsertFlashcard(filePath, input) {
   const incomingContext = sanitizeContext(input.context);
   const contexts = [...(existing?.contexts || [])];
   if (incomingContext.text && !contexts.some((context) => contextKey(context) === contextKey(incomingContext))) contexts.push(incomingContext);
-  const incomingExamples = sanitizeExamples(input.examples);
+  const language = clean(input.language) || existing?.language || 'Unknown';
+  const incomingExamples = sanitizeExamples(input.examples, language);
   const card = {
     id,
     kind: input.kind === 'phrase' ? 'phrase' : (existing?.kind || 'word'),
     word: clean(input.word) || existing?.word || '',
     nativeScript: clean(input.nativeScript) || existing?.nativeScript || '',
-    romanization: clean(input.romanization) || existing?.romanization || '',
+    romanization: normalizeRomanization(input.romanization, language) || existing?.romanization || '',
     meaning: clean(input.meaning) || existing?.meaning || '',
-    language: clean(input.language) || existing?.language || 'Unknown',
+    language,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     contexts,
@@ -105,4 +113,4 @@ async function reviewFlashcard(filePath, id, rating, now = Date.now()) {
   return { card, cards: store.cards };
 }
 
-module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples };
+module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples, normalizeRomanization };
