@@ -155,6 +155,7 @@ app.whenReady().then(() => {
       romanization: generated.romanization,
       meaning: generated.meaning,
       language: generated.language,
+      wordGlosses: generated.wordGlosses,
       examples: generated.examples,
     })));
   });

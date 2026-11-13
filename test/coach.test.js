@@ -19,8 +19,9 @@ test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
 });
 
-test('requires complete normalized vocabulary and three examples', () => {
-  assert.deepEqual(flashcardExamplesSchema.required, ['nativeScript', 'romanization', 'meaning', 'language', 'examples']);
+test('requires complete normalized vocabulary, word glosses, and three examples', () => {
+  assert.deepEqual(flashcardExamplesSchema.required, ['nativeScript', 'romanization', 'meaning', 'language', 'wordGlosses', 'examples']);
+  assert.deepEqual(flashcardExamplesSchema.properties.wordGlosses.items.required, ['word', 'romanization', 'meaning']);
   assert.equal(flashcardExamplesSchema.properties.examples.minItems, 3);
   assert.equal(flashcardExamplesSchema.properties.examples.maxItems, 3);
 });

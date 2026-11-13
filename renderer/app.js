@@ -16,7 +16,7 @@ const state = {
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
   repeatMode: 'off', repeatRestarting: false,
   flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
-  flashcardGenerationKeys: new Set(), studyRatingInFlight: false,
+  flashcardGenerationKeys: new Set(), flashcardGlossAttemptedKeys: new Set(), studyRatingInFlight: false,
   coachMode: 'coach', coachIndex: -1, coachPinned: false,
   chats: {}, chatSending: false, chatError: '',
 };
@@ -231,6 +231,7 @@ function phrasePayload(text, analysis, context = {}) {
     romanization: lowercaseRomanization(analysis.romanization),
     meaning: analysis.translation || '',
     language: analysis.language || state.settings.targetLanguage || 'Unknown',
+    wordGlosses: analysis.wordGlosses || [],
     context: {
       text,
       translation: analysis.translation || '',
@@ -465,10 +466,47 @@ function renderStudyView() {
   const source = card.contexts?.[0];
   const intervals = card.ratingIntervals || { again: '1m', hard: '6m', good: '10m', easy: '4d' };
   const ratingButton = (rating, label) => `<button class="rating-answer ${rating}-answer" data-study-rating="${rating}"><small>${escapeHTML(intervals[rating])}</small><span>${label}</span></button>`;
-  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(lowercaseRomanization(card.romanization))}</strong><p>${escapeHTML(card.meaning)}</p>${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions rating-actions">${ratingButton('again', 'Again')}${ratingButton('hard', 'Hard')}${ratingButton('good', 'Good')}${ratingButton('easy', 'Easy')}</div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
-  elements.flashcardsStudyView.innerHTML = `<div class="study-card"><span class="study-progress">${due.length} due · What does this mean?</span><h3>${escapeHTML(card.nativeScript || card.word)}</h3><span class="study-prompt">Say the meaning and pronunciation before revealing it</span>${answer}</div>`;
+  const glosses = card.wordGlosses || [];
+  const glossMeanings = glosses.map((gloss) => `<span data-study-gloss="${escapeHTML(normalizedWord(gloss.word))}">${escapeHTML(gloss.meaning)}</span>`).join('<i>·</i>');
+  const answer = state.studyRevealed ? `<div class="study-answer"><strong>${escapeHTML(lowercaseRomanization(card.romanization))}</strong><p>${escapeHTML(card.meaning)}</p>${glossMeanings ? `<div class="study-gloss-meanings" aria-label="Word meanings">${glossMeanings}</div>` : ''}${source ? `<div class="study-source">${escapeHTML(source.text)} · “${escapeHTML(source.translation)}”</div>` : ''}</div><div class="study-actions rating-actions">${ratingButton('again', 'Again')}${ratingButton('hard', 'Hard')}${ratingButton('good', 'Good')}${ratingButton('easy', 'Easy')}</div>` : '<div class="study-actions"><button class="reveal-answer" id="revealFlashcardAnswer">Show answer</button></div>';
+  elements.flashcardsStudyView.innerHTML = `<div class="study-card"><span class="study-progress">${due.length} due · What does this mean?</span><h3>${studyPhraseHTML(card.nativeScript || card.word, glosses)}</h3><span class="study-prompt">Say the meaning and pronunciation before revealing it</span>${answer}</div>`;
   elements.flashcardsStudyView.querySelector('#revealFlashcardAnswer')?.addEventListener('click', revealStudyAnswer);
   for (const button of elements.flashcardsStudyView.querySelectorAll('[data-study-rating]')) button.addEventListener('click', () => rateStudyCard(button.dataset.studyRating));
+  attachStudyGlossHover();
+  ensureStudyGlosses(card);
+}
+
+function studyPhraseHTML(text, glosses = []) {
+  const known = new Set(glosses.map((gloss) => normalizedWord(gloss.word)));
+  return [...new Intl.Segmenter(undefined, { granularity: 'word' }).segment(String(text))].map(({ segment, isWordLike }) => {
+    const key = isWordLike ? normalizedWord(segment) : '';
+    return key && known.has(key) ? `<span class="study-gloss-word" data-study-gloss="${escapeHTML(key)}">${escapeHTML(segment)}</span>` : escapeHTML(segment);
+  }).join('');
+}
+
+function attachStudyGlossHover() {
+  for (const word of elements.flashcardsStudyView.querySelectorAll('.study-gloss-word')) {
+    const toggle = (active) => {
+      const key = word.dataset.studyGloss;
+      for (const item of elements.flashcardsStudyView.querySelectorAll('[data-study-gloss]')) item.classList.toggle('gloss-highlight', active && item.dataset.studyGloss === key);
+    };
+    word.addEventListener('mouseenter', () => toggle(true));
+    word.addEventListener('mouseleave', () => toggle(false));
+    word.addEventListener('focus', () => toggle(true));
+    word.addEventListener('blur', () => toggle(false));
+    word.tabIndex = 0;
+  }
+}
+
+function ensureStudyGlosses(card) {
+  if (card.kind !== 'phrase' || card.wordGlosses?.length) return;
+  const key = card.id;
+  if (state.flashcardGlossAttemptedKeys.has(key)) return;
+  state.flashcardGlossAttemptedKeys.add(key);
+  window.bol.generateFlashcardExamples({ ...card, context: card.contexts?.[0] || {} }).then((result) => {
+    state.flashcards = result.cards;
+    renderFlashcards();
+  }).catch((error) => showToast(String(error.message || 'Could not add word meanings.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''), 5000));
 }
 
 function setFlashcardMode(mode) {

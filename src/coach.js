@@ -67,12 +67,13 @@ const glossCorrectionSchema = {
 const flashcardExamplesSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['nativeScript', 'romanization', 'meaning', 'language', 'examples'],
+  required: ['nativeScript', 'romanization', 'meaning', 'language', 'wordGlosses', 'examples'],
   properties: {
     nativeScript: { type: 'string' },
     romanization: { type: 'string' },
     meaning: { type: 'string' },
     language: { type: 'string' },
+    wordGlosses: wordGlossSchema,
     examples: {
       type: 'array',
       minItems: 3,
@@ -187,7 +188,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
       return requestStructured({
         apiKey,
         model,
-        instructions: `You are creating a saved-vocabulary card for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. The saved item may be a single word or a complete phrase, and it may be supplied in native script, Latin-script transliteration, or English. Return nativeScript as the natural ${targetLanguage || card.language || 'target-language'} word or phrase in its normal native script (Devanagari for Hindi). If the input is English, translate it into a natural everyday expression rather than transliterating the English. Return a readable Latin-script romanization of the full item, its concise natural English meaning, and the canonical short language name. Romanization must be entirely lowercase, including its first word. Write exactly three short, distinct example sentences that someone would genuinely say in ordinary life. Avoid song lyrics, poetry, archaic language, textbook contrivances, and unnatural repetition. Each example must naturally use the saved item or a grammatically appropriate inflected variation. Return each example in native script, an entirely lowercase Latin-script romanization, and concise natural English. Do not add explanations.`,
+        instructions: `You are creating a saved-vocabulary card for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. The saved item may be a single word or a complete phrase, and it may be supplied in native script, Latin-script transliteration, or English. Return nativeScript as the natural ${targetLanguage || card.language || 'target-language'} word or phrase in its normal native script (Devanagari for Hindi). If the input is English, translate it into a natural everyday expression rather than transliterating the English. Return a readable Latin-script romanization of the full item, its concise natural English meaning, and the canonical short language name. Romanization must be entirely lowercase, including its first word. In wordGlosses, cover every lexical word in nativeScript with its exact surface form, lowercase romanization, and short contextual English meaning. Write exactly three short, distinct example sentences that someone would genuinely say in ordinary life. Avoid song lyrics, poetry, archaic language, textbook contrivances, and unnatural repetition. Each example must naturally use the saved item or a grammatically appropriate inflected variation. Return each example in native script, an entirely lowercase Latin-script romanization, and concise natural English. Do not add explanations.`,
         input: {
           kind: card.kind || 'word',
           word: card.word,

@@ -303,10 +303,16 @@ button { color: inherit; }
 .study-card { min-height: 390px; display: grid; align-content: center; justify-items: center; padding: 34px; text-align: center; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.02); }
 .study-progress { color: #77766f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .study-card h3 { margin: 24px 0 7px; font: 600 44px Georgia, serif; }
+.study-gloss-word { border-bottom: 2px dotted rgba(143,214,255,.45); border-radius: 4px; cursor: help; transition: color .12s ease, background .12s ease; }
+.study-gloss-word.gloss-highlight { color: #171713; background: var(--sky); }
 .study-prompt { color: #989790; font-size: 14px; }
 .study-answer { width: min(520px, 100%); margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
 .study-answer strong { display: block; color: var(--sky); font-size: 15px; }
 .study-answer p { margin: 6px 0; font-size: 18px; }
+.study-gloss-meanings { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 10px 0 4px; color: #8f8e88; font-size: 12px; }
+.study-gloss-meanings i { opacity: .45; font-style: normal; }
+.study-gloss-meanings span { padding: 3px 6px; border-radius: 5px; transition: color .12s ease, background .12s ease; }
+.study-gloss-meanings span.gloss-highlight { color: #171713; background: var(--sky); }
 .study-source { color: #85847e; font: italic 12px Georgia, serif; }
 .study-actions { display: flex; gap: 8px; margin-top: 22px; }
 .study-actions button { padding: 10px 18px; border: 0; border-radius: 9px; font-size: 11px; font-weight: 700; cursor: pointer; }

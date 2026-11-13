@@ -64,6 +64,14 @@ function sanitizeExamples(examples = [], language = '') {
   })).filter((example) => example.text && example.translation);
 }
 
+function sanitizeWordGlosses(glosses = [], language = '') {
+  return glosses.map((gloss) => ({
+    word: clean(gloss.word),
+    romanization: normalizeRomanization(gloss.romanization, language),
+    meaning: clean(gloss.meaning),
+  })).filter((gloss) => gloss.word && gloss.meaning);
+}
+
 async function upsertFlashcard(filePath, input) {
   const store = await readFlashcards(filePath);
   const id = flashcardId(input.language, input.word);
@@ -75,6 +83,7 @@ async function upsertFlashcard(filePath, input) {
   if (incomingContext.text && !contexts.some((context) => contextKey(context) === contextKey(incomingContext))) contexts.push(incomingContext);
   const language = clean(input.language) || existing?.language || 'Unknown';
   const incomingExamples = sanitizeExamples(input.examples, language);
+  const incomingWordGlosses = sanitizeWordGlosses(input.wordGlosses, language);
   const card = {
     id,
     kind: input.kind === 'phrase' ? 'phrase' : (existing?.kind || 'word'),
@@ -86,6 +95,7 @@ async function upsertFlashcard(filePath, input) {
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     contexts,
+    wordGlosses: incomingWordGlosses.length ? incomingWordGlosses : (existing?.wordGlosses || []),
     examples: incomingExamples.length ? incomingExamples : (existing?.examples || []),
     study: normalizeStudyState(existing?.study || defaultStudyState()),
   };
@@ -112,4 +122,4 @@ async function reviewFlashcard(filePath, id, rating, now = Date.now()) {
   return { card, cards: store.cards };
 }
 
-module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples, normalizeRomanization };
+module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples, sanitizeWordGlosses, normalizeRomanization };
