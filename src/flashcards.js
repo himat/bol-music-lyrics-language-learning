@@ -70,6 +70,7 @@ async function upsertFlashcard(filePath, input) {
   const incomingExamples = sanitizeExamples(input.examples);
   const card = {
     id,
+    kind: input.kind === 'phrase' ? 'phrase' : (existing?.kind || 'word'),
     word: clean(input.word) || existing?.word || '',
     nativeScript: clean(input.nativeScript) || existing?.nativeScript || '',
     romanization: clean(input.romanization) || existing?.romanization || '',

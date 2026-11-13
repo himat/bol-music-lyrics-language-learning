@@ -4,7 +4,7 @@ const elements = Object.fromEntries([
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
   'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton','repeatButton',
   'flashcardsButton','flashcardCount','flashcardsDialog','flashcardsCloseButton','browseFlashcardsTab','studyFlashcardsTab',
-  'flashcardsBrowseView','flashcardsStudyView','flashcardsList','flashcardDetail',
+  'flashcardsBrowseView','flashcardsStudyView','flashcardsList','flashcardDetail','vocabularyAddForm','vocabularyTextInput','vocabularyLanguageInput','vocabularyAddButton',
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = {
@@ -208,6 +208,7 @@ function isSavedWord(language, word) {
 
 function flashcardPayload(word, context) {
   return {
+    kind: 'word',
     word: word.dataset.word || word.textContent,
     romanization: word.dataset.romanization || '',
     meaning: word.dataset.meaning || '',
@@ -222,6 +223,25 @@ function flashcardPayload(word, context) {
   };
 }
 
+function phrasePayload(text, analysis, context = {}) {
+  return {
+    kind: 'phrase',
+    word: text,
+    nativeScript: text,
+    romanization: analysis.romanization || '',
+    meaning: analysis.translation || '',
+    language: analysis.language || state.settings.targetLanguage || 'Unknown',
+    context: {
+      text,
+      translation: analysis.translation || '',
+      songTitle: state.track.title || '',
+      artist: state.track.artist || '',
+      album: state.track.album || '',
+      ...context,
+    },
+  };
+}
+
 function updateFlashcardCount() {
   elements.flashcardCount.textContent = String(state.flashcards.length);
 }
@@ -231,7 +251,35 @@ function markSavedCoachWords() {
     const language = word.dataset.language || state.settings.targetLanguage;
     const saved = isSavedWord(language, word.dataset.word || word.textContent);
     word.classList.toggle('saved', saved);
-    word.title = saved ? 'Saved to your words' : 'Click to save this word';
+    word.title = saved ? 'Saved to your vocabulary' : 'Click to save this word';
+  }
+}
+
+async function saveVocabularyItem(payload, button) {
+  if (button?.disabled) return;
+  if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+  try {
+    const saved = await window.bol.saveFlashcard(payload);
+    state.flashcards = saved.cards;
+    state.selectedFlashcardId = saved.card.id;
+    updateFlashcardCount();
+    renderFlashcards();
+    markSavedCoachWords();
+    if (button) button.textContent = 'Saved ✓';
+    showToast(saved.created ? `${saved.card.kind === 'phrase' ? 'Phrase' : 'Word'} saved · adding daily examples…` : 'Already saved');
+    if (!saved.card.examples.length) {
+      const result = await window.bol.generateFlashcardExamples(payload);
+      state.flashcards = result.cards;
+      state.selectedFlashcardId = result.card.id;
+      renderFlashcards();
+      updateFlashcardCount();
+      showToast(`Daily examples added for ${result.card.nativeScript || result.card.word}`);
+    }
+    return saved.card;
+  } catch (error) {
+    if (button) { button.disabled = false; button.textContent = button.dataset.originalLabel || 'Save phrase'; }
+    showToast(String(error.message || 'Could not save this item.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''), 5000);
+    return null;
   }
 }
 
@@ -286,7 +334,7 @@ function attachCoachWordActions(container, context) {
 }
 
 function flashcardEmptyHTML() {
-  return '<div class="flashcard-empty"><span>✦</span><h3>Save your first word</h3><p>Click any underlined word in the Daily Speech Coach. Bol will keep its meaning, song context, and everyday examples here.</p></div>';
+  return '<div class="flashcard-empty"><span>✦</span><h3>Save your first word or phrase</h3><p>Save vocabulary from the Daily Speech Coach or type your own above. Bol keeps its meaning, context, and everyday examples here.</p></div>';
 }
 
 function renderFlashcardDetail(card) {
@@ -296,7 +344,8 @@ function renderFlashcardDetail(card) {
   }
   const contexts = (card.contexts || []).map((context) => `<div class="context-card"><p>${escapeHTML(context.text)}</p><em>${escapeHTML(context.translation)}</em><small>${escapeHTML([context.songTitle, context.artist].filter(Boolean).join(' · '))}</small></div>`).join('');
   const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${escapeHTML(example.text)}</p><em class="example-romanization">${escapeHTML(example.romanization)}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
-  elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(card.romanization)}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove word</button></div>
+  const itemLabel = card.kind === 'phrase' ? 'phrase' : 'word';
+  elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><small class="vocabulary-kind">${itemLabel}</small><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(card.romanization)}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove ${itemLabel}</button></div>
     <div class="flashcard-section"><small>WHERE YOU HEARD IT</small>${contexts || '<div class="context-card"><p>No source phrase saved.</p></div>'}</div>
     <div class="flashcard-section"><small>EVERYDAY CONVERSATION</small>${examples || `<button class="retry-examples" data-retry-card="${escapeHTML(card.id)}">Generate daily examples</button>`}</div>`;
   elements.flashcardDetail.querySelector('[data-delete-card]')?.addEventListener('click', () => removeFlashcard(card.id));
@@ -314,7 +363,7 @@ function renderFlashcards() {
     return;
   }
   if (!state.flashcards.some((card) => card.id === state.selectedFlashcardId)) state.selectedFlashcardId = state.flashcards[0].id;
-  elements.flashcardsList.innerHTML = state.flashcards.map((card) => `<button class="flashcard-list-item ${card.id === state.selectedFlashcardId ? 'active' : ''}" data-card-id="${escapeHTML(card.id)}"><strong>${escapeHTML(card.nativeScript || card.word)}</strong><span>${escapeHTML(card.romanization)} · ${escapeHTML(card.meaning)}</span><small>${escapeHTML(card.language)}</small></button>`).join('');
+  elements.flashcardsList.innerHTML = state.flashcards.map((card) => `<button class="flashcard-list-item ${card.id === state.selectedFlashcardId ? 'active' : ''}" data-card-id="${escapeHTML(card.id)}"><strong>${escapeHTML(card.nativeScript || card.word)}</strong><span>${escapeHTML(card.romanization)}${card.romanization && card.meaning ? ' · ' : ''}${escapeHTML(card.meaning)}</span><small>${escapeHTML(card.language)} · ${card.kind === 'phrase' ? 'phrase' : 'word'}</small></button>`).join('');
   for (const button of elements.flashcardsList.querySelectorAll('[data-card-id]')) {
     button.addEventListener('click', () => {
       state.selectedFlashcardId = button.dataset.cardId;
@@ -331,7 +380,7 @@ async function removeFlashcard(id) {
   if (state.currentStudyCardId === id) state.currentStudyCardId = null;
   renderFlashcards();
   markSavedCoachWords();
-  showToast('Word removed');
+  showToast('Vocabulary removed');
 }
 
 async function retryFlashcardExamples(card, button) {
@@ -366,7 +415,7 @@ function nextReviewLabel() {
   const nextDue = state.flashcards.map((card) => Date.parse(card.study?.dueAt || ''))
     .filter((dueAt) => Number.isFinite(dueAt) && dueAt > Date.now())
     .sort((a, b) => a - b)[0];
-  if (!nextDue) return 'Add another word whenever you hear one worth learning.';
+  if (!nextDue) return 'Add another word or phrase whenever you find one worth learning.';
   const milliseconds = nextDue - Date.now();
   if (milliseconds < 60 * 60 * 1000) return `Next review in ${Math.max(1, Math.ceil(milliseconds / 60000))} min.`;
   if (milliseconds < 48 * 60 * 60 * 1000) return `Next review in ${Math.ceil(milliseconds / 3600000)} hr.`;
@@ -407,7 +456,7 @@ function renderStudyView() {
   if (!due.length) {
     state.currentStudyCardId = null;
     state.studyRevealed = false;
-    elements.flashcardsStudyView.innerHTML = `<div class="study-card study-complete"><span class="study-complete-icon">✓</span><h3>All caught up</h3><span class="study-prompt">${escapeHTML(nextReviewLabel())}</span><div class="study-actions"><button class="reveal-answer" id="browseSavedWords">Browse saved words</button></div></div>`;
+    elements.flashcardsStudyView.innerHTML = `<div class="study-card study-complete"><span class="study-complete-icon">✓</span><h3>All caught up</h3><span class="study-prompt">${escapeHTML(nextReviewLabel())}</span><div class="study-actions"><button class="reveal-answer" id="browseSavedWords">Browse saved vocabulary</button></div></div>`;
     elements.flashcardsStudyView.querySelector('#browseSavedWords')?.addEventListener('click', () => setFlashcardMode('browse'));
     return;
   }
@@ -428,6 +477,7 @@ function setFlashcardMode(mode) {
   elements.studyFlashcardsTab.classList.toggle('active', mode === 'study');
   elements.flashcardsBrowseView.hidden = mode !== 'browse';
   elements.flashcardsStudyView.hidden = mode !== 'study';
+  elements.vocabularyAddForm.hidden = mode !== 'browse';
   if (mode === 'study') renderStudyView();
 }
 
@@ -435,7 +485,44 @@ async function openFlashcards() {
   state.flashcards = await window.bol.listFlashcards();
   renderFlashcards();
   setFlashcardMode('browse');
+  elements.vocabularyLanguageInput.value = state.settings.targetLanguage || 'Hindi';
   elements.flashcardsDialog.showModal();
+}
+
+function vocabularyKind(text) {
+  return lexicalWordCount(text) > 1 ? 'phrase' : 'word';
+}
+
+function lexicalWordCount(text) {
+  return [...new Intl.Segmenter(undefined, { granularity: 'word' }).segment(String(text || ''))]
+    .filter((part) => part.isWordLike).length;
+}
+
+async function addOwnVocabulary(event) {
+  event.preventDefault();
+  const text = elements.vocabularyTextInput.value.trim();
+  if (!text) return;
+  const button = elements.vocabularyAddButton;
+  button.disabled = true;
+  button.textContent = 'Generating…';
+  try {
+    const result = await window.bol.generateFlashcardExamples({
+      kind: vocabularyKind(text),
+      word: text,
+      language: elements.vocabularyLanguageInput.value.trim() || state.settings.targetLanguage || 'Hindi',
+      context: {},
+    });
+    state.flashcards = result.cards;
+    state.selectedFlashcardId = result.card.id;
+    elements.vocabularyTextInput.value = '';
+    renderFlashcards();
+    showToast(`${result.card.kind === 'phrase' ? 'Phrase' : 'Word'} saved with daily examples`);
+  } catch (error) {
+    showToast(String(error.message || 'Could not add this vocabulary.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''), 5000);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Add to vocab';
+  }
 }
 
 function renderLyrics() {
@@ -701,7 +788,7 @@ function selectCoachLine(index, hovered = false) {
     return;
   }
   const alternative = analysis.dailyAlternative
-    ? `<div class="alternative"><small>SAY THIS IN DAILY LIFE</small><p>${glossedWordsHTML(analysis.dailyAlternative, { wordGlosses: analysis.dailyAlternativeWordGlosses }, 'coach-word')}</p>${analysis.dailyAlternativeTranslation ? `<span class="alternative-translation">${escapeHTML(analysis.dailyAlternativeTranslation)}</span>` : ''}</div>` : '';
+    ? `<div class="alternative"><small>SAY THIS IN DAILY LIFE</small><p>${glossedWordsHTML(analysis.dailyAlternative, { wordGlosses: analysis.dailyAlternativeWordGlosses }, 'coach-word')}</p>${analysis.dailyAlternativeTranslation ? `<span class="alternative-translation">${escapeHTML(analysis.dailyAlternativeTranslation)}</span>` : ''}<button class="save-phrase-button" data-save-daily-phrase type="button">＋ Save daily phrase</button></div>` : '';
   const languageWarning = languageLabel(analysis);
   const languageBadge = languageWarning
     ? `<span class="coach-language-badge ${analysis.targetLanguageFit}">${escapeHTML(languageWarning)}</span>` : '';
@@ -712,6 +799,7 @@ function selectCoachLine(index, hovered = false) {
     <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
     <p class="coach-quote">${quote}</p>
     <p class="coach-translation">“${escapeHTML(analysis.translation)}”</p>
+    <button class="save-phrase-button" data-save-lyric-phrase type="button">＋ Save phrase</button>
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>
     ${alternative}
     <button class="ask-line-button" type="button">✦ Ask a follow-up</button>
@@ -728,6 +816,21 @@ function selectCoachLine(index, hovered = false) {
     translation: analysis.dailyAlternativeTranslation,
     language: state.settings.targetLanguage,
   });
+  const lyricPhraseButton = elements.coachBody.querySelector('[data-save-lyric-phrase]');
+  if (lyricPhraseButton) {
+    lyricPhraseButton.dataset.originalLabel = '＋ Save phrase';
+    lyricPhraseButton.addEventListener('click', () => saveVocabularyItem(phrasePayload(line.text, analysis), lyricPhraseButton));
+  }
+  const dailyPhraseButton = elements.coachBody.querySelector('[data-save-daily-phrase]');
+  if (dailyPhraseButton) {
+    dailyPhraseButton.dataset.originalLabel = '＋ Save daily phrase';
+    const dailyRomanization = (analysis.dailyAlternativeWordGlosses || []).map((gloss) => gloss.romanization).filter(Boolean).join(' ');
+    dailyPhraseButton.addEventListener('click', () => saveVocabularyItem(phrasePayload(analysis.dailyAlternative, {
+      romanization: dailyRomanization,
+      translation: analysis.dailyAlternativeTranslation,
+      language: state.settings.targetLanguage,
+    }), dailyPhraseButton));
+  }
   elements.coachBody.querySelector('.ask-line-button').addEventListener('click', () => setCoachMode('chat', true));
 }
 
@@ -990,6 +1093,7 @@ elements.flashcardsButton.addEventListener('click', openFlashcards);
 elements.flashcardsCloseButton.addEventListener('click', () => elements.flashcardsDialog.close());
 elements.browseFlashcardsTab.addEventListener('click', () => setFlashcardMode('browse'));
 elements.studyFlashcardsTab.addEventListener('click', () => setFlashcardMode('study'));
+elements.vocabularyAddForm.addEventListener('submit', addOwnVocabulary);
 for (const dialog of [elements.flashcardsDialog, elements.settingsDialog]) {
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();

@@ -18,11 +18,33 @@ test('saves one card per language and word while merging source contexts', async
     examples: [{ text: 'मेरी आँखों में देखो', romanization: 'meri aankhon mein dekho', translation: 'Look into my eyes.' }],
   });
   assert.equal(first.created, true);
+  assert.equal(first.card.kind, 'word');
   assert.equal(second.created, false);
   assert.equal(second.cards.length, 1);
   assert.equal(second.card.contexts.length, 2);
   assert.equal(second.card.examples.length, 1);
   assert.equal(second.card.id, flashcardId('Hindi', 'आँखों'));
+});
+
+test('persists phrase cards and their generated daily examples', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-flashcards-'));
+  const file = path.join(directory, 'flashcards.json');
+  const { card } = await upsertFlashcard(file, {
+    kind: 'phrase',
+    word: 'मुझे थोड़ी देर चाहिए',
+    nativeScript: 'मुझे थोड़ी देर चाहिए',
+    romanization: 'mujhe thodi der chahiye',
+    meaning: 'I need a little time',
+    language: 'Hindi',
+    examples: [
+      { text: 'सोचने के लिए मुझे थोड़ी देर चाहिए।', romanization: 'sochne ke liye mujhe thodi der chahiye', translation: 'I need a little time to think.' },
+      { text: 'मुझे थोड़ी देर चाहिए, फिर बात करते हैं।', romanization: 'mujhe thodi der chahiye, phir baat karte hain', translation: 'I need a little time; then we can talk.' },
+      { text: 'तैयार होने में मुझे थोड़ी देर चाहिए।', romanization: 'taiyar hone mein mujhe thodi der chahiye', translation: 'I need a little time to get ready.' },
+    ],
+  });
+  assert.equal(card.kind, 'phrase');
+  assert.equal(card.examples.length, 3);
+  assert.equal((await readFlashcards(file)).cards[0].kind, 'phrase');
 });
 
 test('persists review results and deletes cards', async () => {

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractOutputText, planAnalysis, analysisSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
+const { extractOutputText, planAnalysis, analysisSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -17,6 +17,12 @@ test('extracts text from a raw Responses API payload', () => {
 
 test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
+});
+
+test('requires complete normalized vocabulary and three examples', () => {
+  assert.deepEqual(flashcardExamplesSchema.required, ['nativeScript', 'romanization', 'meaning', 'language', 'examples']);
+  assert.equal(flashcardExamplesSchema.properties.examples.minItems, 3);
+  assert.equal(flashcardExamplesSchema.properties.examples.maxItems, 3);
 });
 
 test('deduplicates repeated chorus lines and creates small batches', () => {

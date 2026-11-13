@@ -149,7 +149,14 @@ app.whenReady().then(() => {
     const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('Add an OpenAI API key in Settings to generate conversation examples.');
     const generated = await createCoach({ ...settings, apiKey }).generateFlashcardExamples(payload);
-    return serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), { ...payload, nativeScript: generated.nativeScript, examples: generated.examples })));
+    return serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), {
+      ...payload,
+      nativeScript: generated.nativeScript,
+      romanization: generated.romanization,
+      meaning: generated.meaning,
+      language: generated.language,
+      examples: generated.examples,
+    })));
   });
   ipcMain.handle('flashcards:delete', (_event, id) => serializeFlashcardWrite(async () => (await deleteFlashcard(flashcardsPath(), id)).map(presentFlashcard)));
   ipcMain.handle('flashcards:review', (_event, id, rating) => serializeFlashcardWrite(async () => presentFlashcardResult(await reviewFlashcard(flashcardsPath(), id, rating))));

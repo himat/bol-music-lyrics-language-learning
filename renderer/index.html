@@ -20,9 +20,9 @@
           <span id="sourceLabel">Finding Spotify…</span>
         </div>
         <div class="top-actions">
-          <button class="cards-button" id="flashcardsButton" aria-label="Open saved words">
+          <button class="cards-button" id="flashcardsButton" aria-label="Open saved vocabulary">
             <svg viewBox="0 0 24 24"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h7M8 12h7"/></svg>
-            <span>Words</span><strong id="flashcardCount">0</strong>
+            <span>Vocab</span><strong id="flashcardCount">0</strong>
           </button>
           <span class="language-label" id="languageLabel">Learning Hindi</span>
           <button class="icon-button" id="settingsButton" aria-label="Settings">
@@ -121,13 +121,18 @@
     <dialog class="flashcards-dialog" id="flashcardsDialog">
       <div class="flashcards-shell">
         <div class="dialog-heading flashcards-heading">
-          <div><span class="eyebrow">YOUR WORDS</span><h2>Learn what you saved</h2></div>
+          <div><span class="eyebrow">YOUR VOCABULARY</span><h2>Learn what you saved</h2></div>
           <button class="close-button" id="flashcardsCloseButton" aria-label="Close">×</button>
         </div>
         <div class="flashcards-tabs" role="tablist">
           <button class="active" id="browseFlashcardsTab" role="tab">Browse</button>
           <button id="studyFlashcardsTab" role="tab">Test yourself</button>
         </div>
+        <form class="vocabulary-add-form" id="vocabularyAddForm">
+          <label><span>Add your own word or phrase</span><input id="vocabularyTextInput" autocomplete="off" placeholder="Type Hindi, Hinglish, or English…" required /></label>
+          <label class="vocabulary-language"><span>Language</span><input id="vocabularyLanguageInput" autocomplete="off" placeholder="Hindi" /></label>
+          <button id="vocabularyAddButton" type="submit">Add to vocab</button>
+        </form>
         <section class="flashcards-view" id="flashcardsBrowseView">
           <div class="flashcards-list" id="flashcardsList"></div>
           <div class="flashcard-detail" id="flashcardDetail"></div>

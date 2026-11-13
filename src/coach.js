@@ -66,9 +66,12 @@ const glossCorrectionSchema = {
 const flashcardExamplesSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['nativeScript', 'examples'],
+  required: ['nativeScript', 'romanization', 'meaning', 'language', 'examples'],
   properties: {
     nativeScript: { type: 'string' },
+    romanization: { type: 'string' },
+    meaning: { type: 'string' },
+    language: { type: 'string' },
     examples: {
       type: 'array',
       minItems: 3,
@@ -167,8 +170,9 @@ function createCoach({ apiKey, model, targetLanguage }) {
       return requestStructured({
         apiKey,
         model,
-        instructions: `You are creating a flashcard for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. Return nativeScript as the supplied word written in the language's normal native script (Devanagari for Hindi), even when the supplied lyric writes it in Latin letters; if it is already in its native script, copy it unchanged. Write exactly three short, natural, distinct conversational examples that teach the supplied word in contexts someone would genuinely say. Avoid song lyrics, poetry, archaic phrasing, and contrived repetition. Each example must contain the word or its grammatically appropriate inflected form. Use the supplied contextual meaning, and preserve the supplied language. Return each example in its native script, a readable Latin-script romanization, and concise natural English. Do not add explanations.`,
+        instructions: `You are creating a saved-vocabulary card for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. The saved item may be a single word or a complete phrase, and it may be supplied in native script, Latin-script transliteration, or English. Return nativeScript as the natural ${targetLanguage || card.language || 'target-language'} word or phrase in its normal native script (Devanagari for Hindi). If the input is English, translate it into a natural everyday expression rather than transliterating the English. Return a readable Latin-script romanization of the full item, its concise natural English meaning, and the canonical short language name. Write exactly three short, distinct example sentences that someone would genuinely say in ordinary life. Avoid song lyrics, poetry, archaic language, textbook contrivances, and unnatural repetition. Each example must naturally use the saved item or a grammatically appropriate inflected variation. Return each example in native script, a readable Latin-script romanization, and concise natural English. Do not add explanations.`,
         input: {
+          kind: card.kind || 'word',
           word: card.word,
           romanization: card.romanization,
           contextualMeaning: card.meaning,
