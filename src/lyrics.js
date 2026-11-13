@@ -40,7 +40,6 @@ async function fetchLyrics(track) {
   } catch (error) {
     if (error.status !== 404) throw error;
   }
-  if (exact?.syncedLyrics) return normalize(exact);
   const search = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
   let results = [];
   try {
@@ -65,7 +64,9 @@ function chooseBestLyrics(exact, results, durationMs = 0) {
   const distance = (record) => targetSeconds > 0 ? Math.abs(Number(record.duration || 0) - targetSeconds) : 0;
   const durationMatched = records.filter((record) => !targetSeconds || distance(record) <= 3);
   const pool = durationMatched.length ? durationMatched : records;
-  const synced = pool.filter((record) => record.syncedLyrics).sort((a, b) => distance(a) - distance(b));
+  const lineCount = (record) => parseLRC(record.syncedLyrics || '').length
+    || String(record.plainLyrics || '').split(/\r?\n/).filter(Boolean).length;
+  const synced = pool.filter((record) => record.syncedLyrics).sort((a, b) => lineCount(b) - lineCount(a) || distance(a) - distance(b));
   return synced[0] || exact || pool[0];
 }
 

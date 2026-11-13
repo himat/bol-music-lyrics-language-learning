@@ -13,3 +13,9 @@ test('keeps exact plain lyrics when no synchronized match exists', () => {
   const exact = { id: 1, duration: 200, plainLyrics: 'plain', syncedLyrics: null };
   assert.equal(chooseBestLyrics(exact, [], 200000), exact);
 });
+
+test('rejects a short exact synced record when a complete duration match exists', () => {
+  const shortExact = { id: 1, duration: 309, syncedLyrics: '[00:10.00] refrain\n[00:20.00] refrain' };
+  const complete = { id: 2, duration: 308, syncedLyrics: Array.from({ length: 24 }, (_, index) => `[${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}.00] line ${index}`).join('\n') };
+  assert.equal(chooseBestLyrics(shortExact, [shortExact, complete], 308000).id, 2);
+});
