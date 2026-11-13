@@ -79,8 +79,8 @@ button { color: inherit; }
 .transport-controls .repeat-button { position: relative; color: #797971; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
 .transport-controls .repeat-button:hover:not(:disabled) { color: var(--lime); background: rgba(217,255,115,.08); }
 .transport-controls .repeat-button.active { color: #171713; background: var(--lime); border-color: transparent; }
-.repeat-button .repeat-one { display: none; position: absolute; inset: 0; place-items: center; padding-top: 1px; font-size: 7px; font-weight: 800; }
-.repeat-button.one svg { opacity: .28; }
+.repeat-button .repeat-one { display: none; position: absolute; inset: 0; place-items: center; padding-top: 1px; color: #10100f; font-size: 13px; font-weight: 950; line-height: 1; text-shadow: 0 0 2px rgba(217,255,115,.9); }
+.repeat-button.one svg { opacity: .15; }
 .repeat-button.one .repeat-one { display: grid; }
 .progress-row { display: grid; grid-template-columns: 30px minmax(80px, 270px) 34px; gap: 9px; align-items: center; color: #74746e; font-size: 10px; font-variant-numeric: tabular-nums; }
 .progress-track { height: 3px; border-radius: 99px; background: #363632; overflow: hidden; }

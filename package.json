@@ -1,6 +1,6 @@
 {
   "name": "bol-language-player",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Learn everyday language from the music playing in Spotify.",
   "main": "main.js",
   "type": "commonjs",
