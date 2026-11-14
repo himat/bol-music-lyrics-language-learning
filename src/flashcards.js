@@ -28,7 +28,8 @@ function emptyStore() {
 async function readFlashcards(filePath) {
   try {
     const value = JSON.parse(await fs.readFile(filePath, 'utf8'));
-    return value?.version === 1 && Array.isArray(value.cards) ? value : emptyStore();
+    if (value?.version !== 1 || !Array.isArray(value.cards)) return emptyStore();
+    return { ...value, cards: value.cards.map((card) => ({ ...card, contexts: dedupeContexts(card.contexts) })) };
   } catch {
     return emptyStore();
   }
@@ -42,18 +43,46 @@ async function writeFlashcards(filePath, store) {
 }
 
 function contextKey(context) {
-  return [context.text, context.translation, context.songTitle, context.artist].map(normalizeWord).join('\0');
+  return [context.text, context.songTitle, context.artist].map(normalizeWord).join('\0');
 }
 
 function sanitizeContext(context = {}) {
+  const timeMs = context.timeMs === null || context.timeMs === undefined ? NaN : Number(context.timeMs);
+  const lyricIndex = context.lyricIndex === null || context.lyricIndex === undefined ? NaN : Number(context.lyricIndex);
   return {
     text: clean(context.text),
     translation: clean(context.translation),
     songTitle: clean(context.songTitle),
     artist: clean(context.artist),
     album: clean(context.album),
+    spotifyUrl: /^spotify:track:[A-Za-z0-9]+$/.test(clean(context.spotifyUrl)) ? clean(context.spotifyUrl) : '',
+    timeMs: Number.isFinite(timeMs) && timeMs >= 0 ? timeMs : null,
+    lyricIndex: Number.isInteger(lyricIndex) && lyricIndex >= 0 ? lyricIndex : null,
     savedAt: context.savedAt || new Date().toISOString(),
   };
+}
+
+function dedupeContexts(contexts = []) {
+  const unique = new Map();
+  for (const rawContext of contexts) {
+    const context = sanitizeContext(rawContext);
+    if (!context.text) continue;
+    const key = contextKey(context);
+    const existing = unique.get(key);
+    if (!existing) {
+      unique.set(key, context);
+      continue;
+    }
+    unique.set(key, {
+      ...existing,
+      translation: existing.translation || context.translation,
+      album: existing.album || context.album,
+      spotifyUrl: existing.spotifyUrl || context.spotifyUrl,
+      timeMs: existing.timeMs ?? context.timeMs,
+      lyricIndex: existing.lyricIndex ?? context.lyricIndex,
+    });
+  }
+  return [...unique.values()];
 }
 
 function sanitizeExamples(examples = [], language = '') {
@@ -79,8 +108,7 @@ async function upsertFlashcard(filePath, input) {
   const existing = existingIndex >= 0 ? store.cards[existingIndex] : null;
   const now = new Date().toISOString();
   const incomingContext = sanitizeContext(input.context);
-  const contexts = [...(existing?.contexts || [])];
-  if (incomingContext.text && !contexts.some((context) => contextKey(context) === contextKey(incomingContext))) contexts.push(incomingContext);
+  const contexts = dedupeContexts([...(existing?.contexts || []), incomingContext]);
   const language = clean(input.language) || existing?.language || 'Unknown';
   const incomingExamples = sanitizeExamples(input.examples, language);
   const incomingWordGlosses = sanitizeWordGlosses(input.wordGlosses, language);
@@ -122,4 +150,4 @@ async function reviewFlashcard(filePath, id, rating, now = Date.now()) {
   return { card, cards: store.cards };
 }
 
-module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples, sanitizeWordGlosses, normalizeRomanization };
+module.exports = { flashcardId, readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard, sanitizeExamples, sanitizeWordGlosses, normalizeRomanization, dedupeContexts };

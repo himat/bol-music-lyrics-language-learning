@@ -86,4 +86,18 @@ async function seekSpotify(positionMs, shouldPlay = false) {
   return getSpotifyState();
 }
 
-module.exports = { getSpotifyState, controlSpotify, seekSpotify, spotifyControlScript, spotifySeekScript };
+function spotifyPlayTrackScript(spotifyUrl, positionMs = 0) {
+  const url = String(spotifyUrl || '').trim();
+  if (!/^spotify:track:[A-Za-z0-9]+$/.test(url)) throw new Error('Invalid Spotify track link.');
+  const milliseconds = Number(positionMs);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new Error('Invalid Spotify seek position.');
+  return `tell application "Spotify"\n  play track "${url}"\n  set player position to ${milliseconds / 1000}\nend tell`;
+}
+
+async function playSpotifyTrack(spotifyUrl, positionMs = 0) {
+  if (process.platform !== 'darwin') throw new Error('Spotify controls currently require macOS.');
+  await execFileAsync('/usr/bin/osascript', ['-e', spotifyPlayTrackScript(spotifyUrl, positionMs)], { timeout: 3000 });
+  return getSpotifyState();
+}
+
+module.exports = { getSpotifyState, controlSpotify, seekSpotify, playSpotifyTrack, spotifyControlScript, spotifySeekScript, spotifyPlayTrackScript };

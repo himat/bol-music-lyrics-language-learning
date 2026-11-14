@@ -9,7 +9,7 @@ const elements = Object.fromEntries([
 
 const state = {
   track: { isPlaying: false, title: 'Waiting for Spotify', artist: 'Open Spotify to begin', album: '', durationMs: 0, positionMs: 0, observedAt: Date.now(), artworkUrl: '', spotifyUrl: '' },
-  lyrics: { synced: false, lines: [] }, analysis: null, activeIndex: -1, hoveredIndex: null,
+  lyrics: { synced: false, lines: [] }, translations: new Map(), analysis: null, activeIndex: -1, hoveredIndex: null,
   mode: 'waiting', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
@@ -140,6 +140,7 @@ function renderTrackLanguages() {
 }
 
 function analysisFor(index) { return state.analysis?.lines?.find((line) => line.index === index); }
+function translationFor(index) { return analysisFor(index)?.translation || state.translations.get(index) || ''; }
 
 function languageLabel(analysis) {
   if (!analysis || analysis.targetLanguageFit === 'target') return '';
@@ -219,6 +220,9 @@ function flashcardPayload(word, context) {
       songTitle: state.track.title || '',
       artist: state.track.artist || '',
       album: state.track.album || '',
+      spotifyUrl: state.track.spotifyUrl || '',
+      timeMs: Number.isFinite(context.timeMs) ? context.timeMs : null,
+      lyricIndex: Number.isInteger(context.lyricIndex) ? context.lyricIndex : null,
     },
   };
 }
@@ -238,6 +242,7 @@ function phrasePayload(text, analysis, context = {}) {
       songTitle: state.track.title || '',
       artist: state.track.artist || '',
       album: state.track.album || '',
+      spotifyUrl: state.track.spotifyUrl || '',
       ...context,
     },
   };
@@ -343,7 +348,7 @@ function renderFlashcardDetail(card) {
     elements.flashcardDetail.innerHTML = flashcardEmptyHTML();
     return;
   }
-  const contexts = (card.contexts || []).map((context) => `<div class="context-card"><p>${escapeHTML(context.text)}</p><em>${escapeHTML(context.translation)}</em><small>${escapeHTML([context.songTitle, context.artist].filter(Boolean).join(' · '))}</small></div>`).join('');
+  const contexts = (card.contexts || []).map((context, index) => `<button type="button" class="context-card" data-source-index="${index}" title="Go to this song"><span class="context-card-copy"><p>${escapeHTML(context.text)}</p><em>${escapeHTML(context.translation)}</em><small>${escapeHTML([context.songTitle, context.artist].filter(Boolean).join(' · '))}</small></span><span class="context-card-action">Go to song&nbsp; →</span></button>`).join('');
   const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${escapeHTML(example.text)}</p><em class="example-romanization">${escapeHTML(lowercaseRomanization(example.romanization))}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
   const itemLabel = card.kind === 'phrase' ? 'phrase' : 'word';
   elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><small class="vocabulary-kind">${itemLabel}</small><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(lowercaseRomanization(card.romanization))}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove ${itemLabel}</button></div>
@@ -351,6 +356,40 @@ function renderFlashcardDetail(card) {
     <div class="flashcard-section"><small>EVERYDAY CONVERSATION</small>${examples || `<button class="retry-examples" data-retry-card="${escapeHTML(card.id)}">Generate daily examples</button>`}</div>`;
   elements.flashcardDetail.querySelector('[data-delete-card]')?.addEventListener('click', () => removeFlashcard(card.id));
   elements.flashcardDetail.querySelector('[data-retry-card]')?.addEventListener('click', (event) => retryFlashcardExamples(card, event.currentTarget));
+  for (const button of elements.flashcardDetail.querySelectorAll('[data-source-index]')) {
+    button.addEventListener('click', () => goToSavedSource(card.contexts[Number(button.dataset.sourceIndex)]));
+  }
+}
+
+function sameTrack(context, track) {
+  return normalizedWord(context.songTitle) === normalizedWord(track.title)
+    && normalizedWord(context.artist) === normalizedWord(track.artist);
+}
+
+async function goToSavedSource(context) {
+  if (!context?.songTitle) return;
+  const positionMs = Number.isFinite(context.timeMs) ? context.timeMs : 0;
+  elements.flashcardsDialog.close();
+  try {
+    if (context.spotifyUrl) {
+      await window.bol.spotifyPlayTrack(context.spotifyUrl, positionMs);
+      state.lastRealTrackKey = '';
+      await pollSpotify();
+      showToast(`Playing ${context.songTitle}`);
+      return;
+    }
+    if (sameTrack(context, state.track)) {
+      if (Number.isFinite(context.timeMs)) await window.bol.spotifySeek(positionMs, true);
+      resumeLiveLine();
+      showToast(`Back to ${context.songTitle}`);
+      return;
+    }
+    const query = encodeURIComponent([context.songTitle, context.artist].filter(Boolean).join(' '));
+    await window.bol.openExternal(`spotify:search:${query}`);
+    showToast('This older save has no direct track link, so Bol opened it in Spotify search.', 5000);
+  } catch (error) {
+    showToast(String(error.message || 'Could not open that song.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''), 5000);
+  }
 }
 
 function renderFlashcards() {
@@ -594,7 +633,7 @@ function renderLyrics() {
     }
     const translation = document.createElement('div');
     translation.className = 'lyric-translation';
-    if (analysis) translation.textContent = analysis.translation;
+    if (translationFor(line.index)) translation.textContent = translationFor(line.index);
     else translation.innerHTML = '<span class="translation-placeholder"></span>';
     row.append(original, translation);
     row.addEventListener('mouseenter', () => {
@@ -608,7 +647,7 @@ function renderLyrics() {
   }
   updateRows();
   renderCurrentLineDock();
-  if (!state.analysis && state.coachMode === 'coach') {
+  if (!state.analysis && !state.isAnalyzing && state.coachMode === 'coach') {
     elements.coachBody.innerHTML = '<div class="coach-intro"><p>Add an API key, then analyze the song to get English translations and daily-speech guidance.</p></div>';
   } else if (state.coachMode === 'chat') {
     renderChat();
@@ -640,8 +679,8 @@ function renderCurrentLineDock() {
   const analysis = analysisFor(line.index);
   const label = languageLabel(analysis);
   const languageTag = label ? `<small class="language-tag ${analysis.targetLanguageFit}">${escapeHTML(label)}</small>` : '';
-  const translation = analysis?.translation
-    ? escapeHTML(analysis.translation)
+  const translation = translationFor(line.index)
+    ? escapeHTML(translationFor(line.index))
     : '<span class="translation-placeholder"></span>';
   elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span class="dock-copy"><span>${glossedWordsHTML(line.text, analysis)}</span>${languageTag}</span></span><span class="dock-translation">${translation}</span>`;
   elements.currentLineDock.hidden = false;
@@ -870,17 +909,21 @@ function selectCoachLine(index, hovered = false) {
     text: line.text,
     translation: analysis.translation,
     language: analysis.language,
+    timeMs: line.timeMs,
+    lyricIndex: line.index,
   });
   const alternativeContainer = elements.coachBody.querySelector('.alternative p');
   if (alternativeContainer) attachCoachWordActions(alternativeContainer, {
     text: analysis.dailyAlternative,
     translation: analysis.dailyAlternativeTranslation,
     language: state.settings.targetLanguage,
+    timeMs: line.timeMs,
+    lyricIndex: line.index,
   });
   const lyricPhraseButton = elements.coachBody.querySelector('[data-save-lyric-phrase]');
   if (lyricPhraseButton) {
     lyricPhraseButton.dataset.originalLabel = '＋ Save phrase';
-    lyricPhraseButton.addEventListener('click', () => saveVocabularyItem(phrasePayload(line.text, analysis), lyricPhraseButton));
+    lyricPhraseButton.addEventListener('click', () => saveVocabularyItem(phrasePayload(line.text, analysis, { timeMs: line.timeMs, lyricIndex: line.index }), lyricPhraseButton));
   }
   const dailyPhraseButton = elements.coachBody.querySelector('[data-save-daily-phrase]');
   if (dailyPhraseButton) {
@@ -890,7 +933,7 @@ function selectCoachLine(index, hovered = false) {
       romanization: dailyRomanization,
       translation: analysis.dailyAlternativeTranslation,
       language: state.settings.targetLanguage,
-    }), dailyPhraseButton));
+    }, { timeMs: line.timeMs, lyricIndex: line.index }), dailyPhraseButton));
   }
   elements.coachBody.querySelector('.ask-line-button').addEventListener('click', () => setCoachMode('chat', true));
 }
@@ -916,6 +959,7 @@ async function loadTrack(track) {
   state.positionBase = track.positionMs;
   state.positionObservedAt = track.observedAt || Date.now();
   state.lyrics = { synced: false, lines: [] };
+  state.translations = new Map();
   state.analysis = null;
   state.isAnalyzing = false;
   stopAnalysisTimer();
@@ -936,11 +980,31 @@ async function loadTrack(track) {
     if (!state.lyrics.lines.length) throw new Error('This track is instrumental.');
     renderLyrics();
     syncAnalyzeButtonVisibility();
-    await analyzeCurrentSong(true);
+    await translateCurrentSong(token);
+    if (token === state.loadToken) await analyzeCurrentSong(true);
   } catch (error) {
     if (token !== state.loadToken) return;
     setEmpty('Lyrics weren’t found', error.message || 'Try another song.');
     elements.analyzeButton.hidden = true;
+  }
+}
+
+async function translateCurrentSong(loadToken) {
+  if (!state.lyrics?.lines?.length) return;
+  elements.translationStatus.hidden = false;
+  elements.translationStatus.textContent = 'Translating…';
+  try {
+    const result = await window.bol.translate({ track: state.track, lines: state.lyrics.lines });
+    if (loadToken !== state.loadToken) return;
+    state.translations = new Map((result.lines || []).map((line) => [line.index, line.translation]));
+    renderLyrics();
+    renderCurrentLineDock();
+  } catch (error) {
+    if (loadToken !== state.loadToken) return;
+    const message = String(error.message || 'English translations could not load.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
+    showToast(message, 5000);
+  } finally {
+    if (loadToken === state.loadToken) elements.translationStatus.hidden = true;
   }
 }
 

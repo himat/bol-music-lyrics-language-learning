@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const ANALYSIS_CACHE_VERSION = 'native-script-v2';
 
-function analysisCacheKey({ track, lines, model, targetLanguage }) {
+function analysisCacheKey({ track, lines, model, targetLanguage, purpose = 'analysis' }) {
   const identity = {
     version: ANALYSIS_CACHE_VERSION,
     model: String(model || ''),
@@ -22,6 +22,7 @@ function analysisCacheKey({ track, lines, model, targetLanguage }) {
       text: String(line.text || ''),
     })),
   };
+  if (purpose !== 'analysis') identity.purpose = purpose;
   return crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 

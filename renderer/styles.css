@@ -298,6 +298,10 @@ button { color: inherit; }
 .flashcard-section { margin-top: 22px; }
 .flashcard-section > small { display: block; margin-bottom: 10px; color: #85847e; font-size: 11px; letter-spacing: .11em; }
 .context-card, .example-card { padding: 12px 14px; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 11px; }
+.context-card { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; color: inherit; text-align: left; cursor: pointer; transition: border-color .12s, background .12s; }
+.context-card:hover, .context-card:focus-visible { background: rgba(217,255,115,.06); border-color: rgba(217,255,115,.35); outline: none; }
+.context-card-copy { min-width: 0; }
+.context-card-action { flex: none; color: var(--lime); font-size: 11px; font-weight: 700; }
 .context-card + .context-card, .example-card + .example-card { margin-top: 7px; }
 .context-card p, .example-card p { margin: 0; font-size: 17px; line-height: 1.45; }
 .context-card em, .example-card em { display: block; margin-top: 5px; color: #aaa9a2; font: italic 14px/1.45 Georgia, serif; }

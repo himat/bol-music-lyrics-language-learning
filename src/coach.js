@@ -46,6 +46,23 @@ const analysisSchema = {
   },
 };
 
+const translationSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['lines'],
+  properties: {
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['index', 'translation'],
+        properties: { index: { type: 'integer' }, translation: { type: 'string' } },
+      },
+    },
+  },
+};
+
 const wordGlossSchema = analysisSchema.properties.lines.items.properties.wordGlosses;
 const glossCorrectionSchema = {
   type: 'object',
@@ -122,7 +139,7 @@ function trimChatHistory(messages, limit = 8) {
     .map(({ role, content }) => ({ role, content: content.trim() }));
 }
 
-async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens }) {
+async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens, timeoutMs = 60000 }) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -134,7 +151,7 @@ async function requestStructured({ apiKey, model, instructions, input, name, sch
       text: { format: { type: 'json_schema', name, strict: true, schema } },
       max_output_tokens: maxOutputTokens,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message || `OpenAI returned ${response.status}.`);
@@ -145,6 +162,26 @@ async function requestStructured({ apiKey, model, instructions, input, name, sch
 
 function createCoach({ apiKey, model, targetLanguage }) {
   return {
+    async translate({ track, lines }) {
+      const plan = planAnalysis(lines, 20);
+      const batches = await Promise.all(plan.uniqueChunks.map((compactLines) => requestStructured({
+        apiKey,
+        model,
+        instructions: 'Translate every supplied lyric line into concise, natural English. Preserve every input index exactly once. Return only the translations; do not explain, romanize, classify, or add vocabulary notes.',
+        input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
+        name: 'song_english_translations',
+        schema: translationSchema,
+        maxOutputTokens: 1600,
+        timeoutMs: 30000,
+      })));
+      const byCanonicalIndex = new Map(batches.flatMap((batch) => batch.lines).map((line) => [line.index, line.translation]));
+      return {
+        lines: plan.originals.map(({ index, canonicalIndex }) => ({
+          index,
+          translation: byCanonicalIndex.get(canonicalIndex) || '',
+        })),
+      };
+    },
     async analyze({ track, lines }) {
       const plan = planAnalysis(lines);
       const batches = await Promise.all(plan.uniqueChunks.map(async (compactLines) => {
@@ -157,7 +194,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
           schema: analysisSchema,
           maxOutputTokens: 6000,
         });
-        for (let attempt = 0; attempt < 2; attempt += 1) {
+        for (let attempt = 0; attempt < 1; attempt += 1) {
           const missing = findMissingGlosses(compactLines, batch.lines);
           if (!missing.length) break;
           const correction = await requestStructured({
@@ -268,16 +305,23 @@ function mergeGlossCorrections(batch, correction) {
   };
 }
 
-function planAnalysis(lines, chunkSize = 12) {
+function analysisLineKey(text) {
+  return String(text || '').normalize('NFKC').trim().toLocaleLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,!?।])/g, '$1');
+}
+
+function planAnalysis(lines, chunkSize = 6) {
   const textToCanonical = new Map();
   const unique = [];
   const originals = lines.slice(0, 160).map(({ index, text }) => {
     const normalized = String(text).trim();
-    if (!textToCanonical.has(normalized)) {
-      textToCanonical.set(normalized, index);
+    const key = analysisLineKey(normalized);
+    if (!textToCanonical.has(key)) {
+      textToCanonical.set(key, index);
       unique.push({ index, text: normalized });
     }
-    return { index, canonicalIndex: textToCanonical.get(normalized) };
+    return { index, canonicalIndex: textToCanonical.get(key) };
   });
   const uniqueChunks = [];
   for (let index = 0; index < unique.length; index += chunkSize) uniqueChunks.push(unique.slice(index, index + chunkSize));
@@ -293,4 +337,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, planAnalysis, lexicalWords, findMissingGlosses, mergeGlossCorrections };
+module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections };

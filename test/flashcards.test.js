@@ -32,6 +32,21 @@ test('saves one card per language and word while merging source contexts', async
   assert.equal(second.card.id, flashcardId('Hindi', 'आँखों'));
 });
 
+test('deduplicates the same lyric source and preserves navigation metadata', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-flashcards-'));
+  const file = path.join(directory, 'flashcards.json');
+  await fs.writeFile(file, JSON.stringify({ version: 1, cards: [{
+    id: 'legacy', word: 'अगर', language: 'Hindi', contexts: [
+      { text: 'अगर तुम साथ हो', translation: 'If you are with me', songTitle: 'Agar Tum Sath Ho', artist: 'Alka Yagnik' },
+      { text: 'अगर तुम साथ हो', translation: "If you're with me", songTitle: 'Agar Tum Sath Ho', artist: 'Alka Yagnik', spotifyUrl: 'spotify:track:abc123', timeMs: 42000 },
+    ],
+  }] }));
+  const store = await readFlashcards(file);
+  assert.equal(store.cards[0].contexts.length, 1);
+  assert.equal(store.cards[0].contexts[0].spotifyUrl, 'spotify:track:abc123');
+  assert.equal(store.cards[0].contexts[0].timeMs, 42000);
+});
+
 test('persists phrase cards and their generated daily examples', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-flashcards-'));
   const file = path.join(directory, 'flashcards.json');

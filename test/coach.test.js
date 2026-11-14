@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractOutputText, planAnalysis, analysisSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
+const { extractOutputText, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -26,6 +26,12 @@ test('requires complete normalized vocabulary, word glosses, and three examples'
   assert.equal(flashcardExamplesSchema.properties.examples.maxItems, 3);
 });
 
+test('keeps the fast translation response minimal', () => {
+  assert.deepEqual(translationSchema.required, ['lines']);
+  assert.deepEqual(translationSchema.properties.lines.items.required, ['index', 'translation']);
+  assert.deepEqual(Object.keys(translationSchema.properties.lines.items.properties), ['index', 'translation']);
+});
+
 test('deduplicates repeated chorus lines and creates small batches', () => {
   const plan = planAnalysis([
     { index: 0, text: 'first' },
@@ -38,6 +44,18 @@ test('deduplicates repeated chorus lines and creates small batches', () => {
     [{ index: 3, text: 'last' }],
   ]);
   assert.deepEqual(plan.originals[2], { index: 2, canonicalIndex: 1 });
+});
+
+test('uses six-line batches and deduplicates cosmetic lyric differences', () => {
+  const lines = Array.from({ length: 8 }, (_, index) => ({ index, text: `line ${index}` }));
+  lines.push({ index: 8, text: '  LINE 1  ' });
+  lines.push({ index: 9, text: 'line 2 ,' });
+  lines.push({ index: 10, text: 'line 2,' });
+  const plan = planAnalysis(lines);
+  assert.equal(plan.uniqueChunks[0].length, 6);
+  assert.equal(plan.uniqueChunks[1].length, 3);
+  assert.equal(plan.originals[8].canonicalIndex, 1);
+  assert.equal(plan.originals[10].canonicalIndex, 9);
 });
 
 test('requires a per-line language and target-language fit', () => {

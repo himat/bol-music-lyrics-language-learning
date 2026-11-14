@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { spotifyControlScript, spotifySeekScript } = require('../src/spotify');
+const { spotifyControlScript, spotifySeekScript, spotifyPlayTrackScript } = require('../src/spotify');
 
 test('maps only supported Spotify transport controls', () => {
   assert.equal(spotifyControlScript('previous'), 'tell application "Spotify" to previous track');
@@ -20,4 +20,12 @@ test('maps a lyric timestamp to a safe Spotify seek command', () => {
   );
   assert.throws(() => spotifySeekScript(-1), /Invalid Spotify seek position/);
   assert.throws(() => spotifySeekScript('not-a-time'), /Invalid Spotify seek position/);
+});
+
+test('plays a saved Spotify track at its lyric timestamp', () => {
+  assert.equal(
+    spotifyPlayTrackScript('spotify:track:abc123', 42000),
+    'tell application "Spotify"\n  play track "spotify:track:abc123"\n  set player position to 42\nend tell',
+  );
+  assert.throws(() => spotifyPlayTrackScript('spotify:search:bad', 0), /Invalid Spotify track link/);
 });

@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, safeStorage, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const { getSpotifyState, controlSpotify, seekSpotify } = require('./src/spotify');
+const { getSpotifyState, controlSpotify, seekSpotify, playSpotifyTrack } = require('./src/spotify');
 const { fetchLyrics } = require('./src/lyrics');
 const { createCoach } = require('./src/coach');
 const { analysisCacheKey, readAnalysisCache, writeAnalysisCache } = require('./src/analysis-cache');
@@ -124,7 +124,22 @@ app.whenReady().then(() => {
   ipcMain.handle('spotify:state', () => getSpotifyState());
   ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
   ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
+  ipcMain.handle('spotify:play-track', (_event, spotifyUrl, positionMs) => playSpotifyTrack(spotifyUrl, positionMs));
   ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
+  ipcMain.handle('coach:translate', async (_event, payload) => {
+    const settings = await loadSettings();
+    const fullKey = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
+    const fullAnalysis = await readAnalysisCache(analysisCachePath(), fullKey);
+    if (fullAnalysis) return { lines: fullAnalysis.lines.map(({ index, translation }) => ({ index, translation })) };
+    const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage, purpose: 'translation' });
+    const cached = await readAnalysisCache(analysisCachePath(), key);
+    if (cached) return cached;
+    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to translate this song.');
+    const translations = await createCoach({ ...settings, apiKey }).translate(payload);
+    await writeAnalysisCache(analysisCachePath(), key, translations);
+    return translations;
+  });
   ipcMain.handle('coach:analyze', async (_event, payload) => {
     const settings = await loadSettings();
     const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
