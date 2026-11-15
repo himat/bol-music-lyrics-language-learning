@@ -1,7 +1,7 @@
 const elements = Object.fromEntries([
   'sourcePill','sourceLabel','languageLabel','trackTitle','trackArtist','coverArt','playingBars','elapsedTime',
   'trackLanguages','languageDetectionStatus','syncStatus','durationTime','progressFill','spotifyButton','lyricsScroll','emptyState','emptyTitle','emptyMessage','coachPanel','coachBody','coachModeButton','chatModeButton',
-  'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput',
+  'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput','apiKeyStatus',
   'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton','repeatButton',
   'flashcardsButton','flashcardCount','flashcardsDialog','flashcardsCloseButton','browseFlashcardsTab','studyFlashcardsTab',
   'flashcardsBrowseView','flashcardsStudyView','flashcardsList','flashcardDetail','vocabularyAddForm','vocabularyTextInput','vocabularyLanguageInput','vocabularyAddButton',
@@ -648,10 +648,17 @@ function renderLyrics() {
   updateRows();
   renderCurrentLineDock();
   if (!state.analysis && !state.isAnalyzing && state.coachMode === 'coach') {
-    elements.coachBody.innerHTML = '<div class="coach-intro"><p>Add an API key, then analyze the song to get English translations and daily-speech guidance.</p></div>';
+    elements.coachBody.innerHTML = `<div class="coach-intro"><p>${apiKeyGuidance('get English translations and daily-speech guidance')}</p></div>`;
   } else if (state.coachMode === 'chat') {
     renderChat();
   }
+}
+
+function apiKeyGuidance(purpose) {
+  if (state.settings.apiKeyStatus === 'unreadable') {
+    return `Bol found your saved API key, but macOS can no longer decrypt it. Open Settings and enter the key again to ${purpose}.`;
+  }
+  return `Add an API key, then analyze the song to ${purpose}.`;
 }
 
 function cancelCoachHoverExit() {
@@ -883,7 +890,7 @@ function selectCoachLine(index, hovered = false) {
       </div>`;
       updateAnalysisElapsed();
     } else {
-      elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : 'Add an API key, then analyze the song to see daily-speech guidance.'}</p></div>`;
+      elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : apiKeyGuidance('see daily-speech guidance')}</p></div>`;
     }
     return;
   }
@@ -1210,7 +1217,12 @@ async function openSettings() {
   elements.targetLanguageInput.value = state.settings.targetLanguage || 'Hindi';
   elements.modelInput.value = state.settings.model || 'gpt-4o-mini';
   elements.apiKeyInput.value = '';
-  elements.apiKeyInput.placeholder = state.settings.apiKey ? 'Saved securely · enter to replace' : 'sk-…';
+  const keyUnreadable = state.settings.apiKeyStatus === 'unreadable';
+  elements.apiKeyInput.placeholder = state.settings.apiKey ? 'Saved securely · enter to replace' : keyUnreadable ? 'Enter key again to restore access' : 'sk-…';
+  elements.apiKeyStatus.textContent = keyUnreadable
+    ? 'A saved key was found, but macOS can no longer decrypt it. Enter the key again to secure it with your current login keychain.'
+    : 'Used for translation and daily-speech notes. Encrypted in macOS safe storage.';
+  elements.apiKeyStatus.classList.toggle('settings-warning', keyUnreadable);
   elements.settingsDialog.showModal();
 }
 

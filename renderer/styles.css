@@ -257,6 +257,7 @@ button { color: inherit; }
 .settings-dialog input { width: 100%; padding: 11px 12px; color: var(--ink); background: #151514; border: 1px solid #393934; border-radius: 10px; outline: none; }
 .settings-dialog input:focus { border-color: #8da94a; box-shadow: 0 0 0 3px rgba(217,255,115,.08); }
 .settings-dialog small { color: #71706a; font-size: 10px; line-height: 1.4; }
+.settings-dialog small.settings-warning { color: #ff9a85; font-size: 11px; }
 .dialog-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; }
 .text-button { color: #9d9c95; background: none; border: 0; font-size: 11px; cursor: pointer; }
 .flashcards-dialog { width: min(920px, calc(100vw - 48px)); height: min(680px, calc(100vh - 48px)); padding: 0; color: var(--ink); background: #171716; border: 1px solid #42413b; border-radius: 22px; box-shadow: 0 30px 110px rgba(0,0,0,.8); overflow: hidden; }

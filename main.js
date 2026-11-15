@@ -71,15 +71,29 @@ function presentFlashcardResult(result) {
 }
 
 async function loadSettings() {
+  const defaults = { model: 'gpt-4o-mini', targetLanguage: 'Hindi', apiKey: '', apiKeyStatus: 'missing' };
+  let stored;
   try {
-    const stored = JSON.parse(await fs.readFile(configPath(), 'utf8'));
-    if (stored.encryptedApiKey && safeStorage.isEncryptionAvailable()) {
-      stored.apiKey = safeStorage.decryptString(Buffer.from(stored.encryptedApiKey, 'base64'));
-    }
-    delete stored.encryptedApiKey;
-    return { model: 'gpt-4o-mini', targetLanguage: 'Hindi', ...stored };
+    stored = JSON.parse(await fs.readFile(configPath(), 'utf8'));
   } catch {
-    return { model: 'gpt-4o-mini', targetLanguage: 'Hindi', apiKey: '' };
+    return defaults;
+  }
+
+  const settings = { ...defaults, ...stored };
+  delete settings.encryptedApiKey;
+  if (!stored.encryptedApiKey) return settings;
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ...settings, apiKey: '', apiKeyStatus: 'unreadable' };
+  }
+
+  try {
+    return {
+      ...settings,
+      apiKey: safeStorage.decryptString(Buffer.from(stored.encryptedApiKey, 'base64')),
+      apiKeyStatus: 'saved',
+    };
+  } catch {
+    return { ...settings, apiKey: '', apiKeyStatus: 'unreadable' };
   }
 }
 
@@ -94,6 +108,15 @@ async function saveSettings(next) {
   await fs.mkdir(path.dirname(configPath()), { recursive: true });
   await fs.writeFile(configPath(), JSON.stringify(value, null, 2));
   return { ...value, apiKey: next.apiKey ? 'saved' : '' };
+}
+
+function apiKeyFor(settings, missingMessage) {
+  const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
+  if (apiKey) return apiKey;
+  if (settings.apiKeyStatus === 'unreadable') {
+    throw new Error('Bol found your saved API key, but macOS can no longer decrypt it. Open Settings and enter the key again.');
+  }
+  throw new Error(missingMessage);
 }
 
 function createWindow() {
@@ -134,8 +157,7 @@ app.whenReady().then(() => {
     const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage, purpose: 'translation' });
     const cached = await readAnalysisCache(analysisCachePath(), key);
     if (cached) return cached;
-    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to translate this song.');
+    const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to translate this song.');
     const translations = await createCoach({ ...settings, apiKey }).translate(payload);
     await writeAnalysisCache(analysisCachePath(), key, translations);
     return translations;
@@ -145,24 +167,21 @@ app.whenReady().then(() => {
     const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
     const cached = await readAnalysisCache(analysisCachePath(), key);
     if (cached) return cached;
-    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to translate and explain this song.');
+    const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to translate and explain this song.');
     const analysis = await createCoach({ ...settings, apiKey }).analyze(payload);
     await writeAnalysisCache(analysisCachePath(), key, analysis);
     return analysis;
   });
   ipcMain.handle('coach:chat', async (_event, payload) => {
     const settings = await loadSettings();
-    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to ask questions about lyrics.');
+    const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to ask questions about lyrics.');
     return createCoach({ ...settings, apiKey }).answerLyricQuestion(payload);
   });
   ipcMain.handle('flashcards:list', async () => (await readFlashcards(flashcardsPath())).cards.map(presentFlashcard));
   ipcMain.handle('flashcards:save', (_event, payload) => serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), payload))));
   ipcMain.handle('flashcards:examples', async (_event, payload) => {
     const settings = await loadSettings();
-    const apiKey = settings.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('Add an OpenAI API key in Settings to generate conversation examples.');
+    const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to generate conversation examples.');
     const generated = await createCoach({ ...settings, apiKey }).generateFlashcardExamples(payload);
     return serializeFlashcardWrite(async () => presentFlashcardResult(await upsertFlashcard(flashcardsPath(), {
       ...payload,
