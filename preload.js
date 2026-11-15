@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld('bol', {
   spotifyPlayTrack: (spotifyUrl, positionMs) => ipcRenderer.invoke('spotify:play-track', spotifyUrl, positionMs),
   fetchLyrics: (track) => ipcRenderer.invoke('lyrics:fetch', track),
   translate: (payload) => ipcRenderer.invoke('coach:translate', payload),
+  onTranslationProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('coach:translation-progress', handler);
+    return () => ipcRenderer.removeListener('coach:translation-progress', handler);
+  },
   analyze: (payload) => ipcRenderer.invoke('coach:analyze', payload),
   askCoach: (payload) => ipcRenderer.invoke('coach:chat', payload),
   listFlashcards: () => ipcRenderer.invoke('flashcards:list'),

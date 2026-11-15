@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractOutputText, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
+const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -30,6 +30,52 @@ test('keeps the fast translation response minimal', () => {
   assert.deepEqual(translationSchema.required, ['lines']);
   assert.deepEqual(translationSchema.properties.lines.items.required, ['index', 'translation']);
   assert.deepEqual(Object.keys(translationSchema.properties.lines.items.properties), ['index', 'translation']);
+});
+
+test('extracts only complete translation objects from streamed structured output', () => {
+  const partial = '{"lines":[{"index":0,"translation":"Hello, {friend} — \\"yes\\"."},{"index":1,"translation":"Still arriv';
+  assert.deepEqual(extractCompleteArrayObjects(partial, 'lines'), [
+    { index: 0, translation: 'Hello, {friend} — "yes".' },
+  ]);
+});
+
+test('streams completed translations before returning the full song', async () => {
+  const originalFetch = global.fetch;
+  const encoder = new TextEncoder();
+  const deltas = [
+    '{"lines":[{"index":0,"translation":"First"}',
+    ',{"index":1,"translation":"Chorus"}]}',
+  ];
+  global.fetch = async (_url, options) => {
+    assert.equal(JSON.parse(options.body).stream, true);
+    return new Response(new ReadableStream({
+      start(controller) {
+        for (const delta of deltas) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'response.output_text.delta', delta })}\n\n`));
+        }
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'response.completed' })}\n\n`));
+        controller.close();
+      },
+    }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  };
+  try {
+    const progress = [];
+    const result = await createCoach({ apiKey: 'test', model: 'gpt-4o-mini', targetLanguage: 'Hindi' }).translate({
+      track: { title: 'Test', artist: 'Singer' },
+      lines: [{ index: 0, text: 'first' }, { index: 1, text: 'chorus' }, { index: 2, text: 'chorus' }],
+    }, (update) => progress.push(update.lines));
+    assert.deepEqual(progress, [
+      [{ index: 0, translation: 'First' }],
+      [{ index: 1, translation: 'Chorus' }, { index: 2, translation: 'Chorus' }],
+    ]);
+    assert.deepEqual(result.lines, [
+      { index: 0, translation: 'First' },
+      { index: 1, translation: 'Chorus' },
+      { index: 2, translation: 'Chorus' },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test('deduplicates repeated chorus lines and creates small batches', () => {

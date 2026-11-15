@@ -12,7 +12,7 @@ const state = {
   lyrics: { synced: false, lines: [] }, translations: new Map(), analysis: null, activeIndex: -1, hoveredIndex: null,
   mode: 'waiting', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
-  loadToken: 0, userBrowsing: false, programmaticScroll: false, browseTimer: null,
+  loadToken: 0, translationRequestId: '', userBrowsing: false, programmaticScroll: false, browseTimer: null,
   isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
   repeatMode: 'off', repeatRestarting: false,
   flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
@@ -970,6 +970,7 @@ async function loadTrack(track) {
   state.positionObservedAt = track.observedAt || Date.now();
   state.lyrics = { synced: false, lines: [] };
   state.translations = new Map();
+  state.translationRequestId = '';
   state.analysis = null;
   state.isAnalyzing = false;
   stopAnalysisTimer();
@@ -1001,12 +1002,14 @@ async function loadTrack(track) {
 
 async function translateCurrentSong(loadToken) {
   if (!state.lyrics?.lines?.length) return;
+  const requestId = crypto.randomUUID();
+  state.translationRequestId = requestId;
   elements.translationStatus.hidden = false;
   elements.translationStatus.textContent = 'Translating…';
   try {
-    const result = await window.bol.translate({ track: state.track, lines: state.lyrics.lines });
+    const result = await window.bol.translate({ track: state.track, lines: state.lyrics.lines, requestId });
     if (loadToken !== state.loadToken) return;
-    state.translations = new Map((result.lines || []).map((line) => [line.index, line.translation]));
+    applyTranslationLines(result.lines || []);
     renderLyrics();
     renderCurrentLineDock();
   } catch (error) {
@@ -1017,6 +1020,20 @@ async function translateCurrentSong(loadToken) {
     if (loadToken === state.loadToken) elements.translationStatus.hidden = true;
   }
 }
+
+function applyTranslationLines(lines) {
+  for (const line of lines) {
+    state.translations.set(line.index, line.translation);
+    const translation = elements.lyricsScroll.querySelector(`.lyric-row[data-index="${line.index}"] .lyric-translation`);
+    if (translation) translation.textContent = line.translation;
+  }
+  renderCurrentLineDock();
+}
+
+window.bol.onTranslationProgress(({ requestId, lines }) => {
+  if (!requestId || requestId !== state.translationRequestId) return;
+  applyTranslationLines(lines || []);
+});
 
 async function analyzeCurrentSong(automatic = false) {
   if (!state.lyrics?.lines?.length || state.analysis) return;

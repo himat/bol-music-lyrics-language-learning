@@ -10,6 +10,7 @@ const { normalizeStudyState, ratingIntervals } = require('./src/spaced-repetitio
 
 let mainWindow;
 let flashcardWriteQueue = Promise.resolve();
+const translationControllers = new WeakMap();
 
 // Keep the concise macOS menu-bar name while the packaged .app uses the
 // descriptive productName configured for Finder.
@@ -149,18 +150,29 @@ app.whenReady().then(() => {
   ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
   ipcMain.handle('spotify:play-track', (_event, spotifyUrl, positionMs) => playSpotifyTrack(spotifyUrl, positionMs));
   ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
-  ipcMain.handle('coach:translate', async (_event, payload) => {
+  ipcMain.handle('coach:translate', async (event, payload) => {
+    const { requestId, ...translationPayload } = payload;
+    translationControllers.get(event.sender)?.abort();
+    translationControllers.delete(event.sender);
     const settings = await loadSettings();
-    const fullKey = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
+    const fullKey = analysisCacheKey({ ...translationPayload, model: settings.model, targetLanguage: settings.targetLanguage });
     const fullAnalysis = await readAnalysisCache(analysisCachePath(), fullKey);
     if (fullAnalysis) return { lines: fullAnalysis.lines.map(({ index, translation }) => ({ index, translation })) };
-    const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage, purpose: 'translation' });
+    const key = analysisCacheKey({ ...translationPayload, model: settings.model, targetLanguage: settings.targetLanguage, purpose: 'translation' });
     const cached = await readAnalysisCache(analysisCachePath(), key);
     if (cached) return cached;
     const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to translate this song.');
-    const translations = await createCoach({ ...settings, apiKey }).translate(payload);
-    await writeAnalysisCache(analysisCachePath(), key, translations);
-    return translations;
+    const controller = new AbortController();
+    translationControllers.set(event.sender, controller);
+    try {
+      const translations = await createCoach({ ...settings, apiKey }).translate(translationPayload, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send('coach:translation-progress', { requestId, ...progress });
+      }, controller.signal);
+      await writeAnalysisCache(analysisCachePath(), key, translations);
+      return translations;
+    } finally {
+      if (translationControllers.get(event.sender) === controller) translationControllers.delete(event.sender);
+    }
   });
   ipcMain.handle('coach:analyze', async (_event, payload) => {
     const settings = await loadSettings();

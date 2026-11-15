@@ -160,20 +160,138 @@ async function requestStructured({ apiKey, model, instructions, input, name, sch
   return JSON.parse(outputText);
 }
 
+function extractCompleteArrayObjects(text, propertyName) {
+  const propertyAt = String(text).indexOf(`"${propertyName}"`);
+  if (propertyAt < 0) return [];
+  const arrayAt = String(text).indexOf('[', propertyAt);
+  if (arrayAt < 0) return [];
+  const objects = [];
+  let objectStart = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = arrayAt + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === '{') {
+      if (depth === 0) objectStart = index;
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0 && objectStart >= 0) {
+        try { objects.push(JSON.parse(text.slice(objectStart, index + 1))); } catch {}
+        objectStart = -1;
+      }
+    } else if (character === ']' && depth === 0) {
+      break;
+    }
+  }
+  return objects;
+}
+
+async function readSSE(body, onEvent) {
+  if (!body) throw new Error('The language coach returned no response stream.');
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const consume = (final = false) => {
+    buffer += final ? decoder.decode() : '';
+    buffer = buffer.replace(/\r\n/g, '\n');
+    if (final && buffer.trim() && !buffer.endsWith('\n\n')) buffer += '\n\n';
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary >= 0) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const data = frame.split('\n').filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart()).join('\n');
+      if (data && data !== '[DONE]') onEvent(JSON.parse(data));
+      boundary = buffer.indexOf('\n\n');
+    }
+  };
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      consume();
+    }
+    consume(true);
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  }
+}
+
+async function requestStructuredStream({ apiKey, model, instructions, input, name, schema, maxOutputTokens, timeoutMs = 60000, onTextDelta, signal }) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: model || 'gpt-4o-mini',
+      store: false,
+      stream: true,
+      instructions,
+      input: JSON.stringify(input),
+      text: { format: { type: 'json_schema', name, strict: true, schema } },
+      max_output_tokens: maxOutputTokens,
+    }),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error?.message || `OpenAI returned ${response.status}.`);
+  }
+  let outputText = '';
+  await readSSE(response.body, (event) => {
+    if (event.type === 'response.output_text.delta') {
+      outputText += event.delta || '';
+      onTextDelta?.(outputText);
+    } else if (event.type === 'error' || event.type === 'response.failed') {
+      throw new Error(event.error?.message || event.response?.error?.message || event.message || 'The language coach stream failed.');
+    }
+  });
+  if (!outputText) throw new Error('The language coach returned no analysis.');
+  return JSON.parse(outputText);
+}
+
 function createCoach({ apiKey, model, targetLanguage }) {
   return {
-    async translate({ track, lines }) {
+    async translate({ track, lines }, onProgress, signal) {
       const plan = planAnalysis(lines, 20);
-      const batches = await Promise.all(plan.uniqueChunks.map((compactLines) => requestStructured({
-        apiKey,
-        model,
-        instructions: 'Translate every supplied lyric line into concise, natural English. Preserve every input index exactly once. Return only the translations; do not explain, romanize, classify, or add vocabulary notes.',
-        input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
-        name: 'song_english_translations',
-        schema: translationSchema,
-        maxOutputTokens: 1600,
-        timeoutMs: 30000,
-      })));
+      const batches = await Promise.all(plan.uniqueChunks.map((compactLines) => {
+        const emitted = new Set();
+        return requestStructuredStream({
+          apiKey,
+          model,
+          instructions: 'Translate every supplied lyric line into concise, natural English. Preserve every input index exactly once. Return only the translations; do not explain, romanize, classify, or add vocabulary notes.',
+          input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
+          name: 'song_english_translations',
+          schema: translationSchema,
+          maxOutputTokens: 1600,
+          timeoutMs: 30000,
+          signal,
+          onTextDelta: (partialText) => {
+            const completed = extractCompleteArrayObjects(partialText, 'lines').filter((line) => !emitted.has(line.index));
+            if (!completed.length) return;
+            completed.forEach((line) => emitted.add(line.index));
+            const translations = [];
+            for (const line of completed) {
+              for (const original of plan.originals) {
+                if (original.canonicalIndex === line.index) translations.push({ index: original.index, translation: line.translation });
+              }
+            }
+            if (translations.length) onProgress?.({ lines: translations });
+          },
+        });
+      }));
       const byCanonicalIndex = new Map(batches.flatMap((batch) => batch.lines).map((line) => [line.index, line.translation]));
       return {
         lines: plan.originals.map(({ index, canonicalIndex }) => ({
@@ -337,4 +455,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections };
+module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections };
