@@ -62,7 +62,10 @@ test('persists phrase cards and their generated daily examples', async () => {
       { word: 'थोड़ी', romanization: 'Thodi', meaning: 'a little' },
     ],
     examples: [
-      { text: 'सोचने के लिए मुझे थोड़ी देर चाहिए।', romanization: 'sochne ke liye mujhe thodi der chahiye', translation: 'I need a little time to think.' },
+      { text: 'सोचने के लिए मुझे थोड़ी देर चाहिए।', romanization: 'sochne ke liye mujhe thodi der chahiye', translation: 'I need a little time to think.', wordGlosses: [
+        { word: 'मुझे', romanization: 'Mujhe', meaning: 'to me' },
+        { word: 'थोड़ी', romanization: 'Thodi', meaning: 'a little' },
+      ] },
       { text: 'मुझे थोड़ी देर चाहिए, फिर बात करते हैं।', romanization: 'mujhe thodi der chahiye, phir baat karte hain', translation: 'I need a little time; then we can talk.' },
       { text: 'तैयार होने में मुझे थोड़ी देर चाहिए।', romanization: 'taiyar hone mein mujhe thodi der chahiye', translation: 'I need a little time to get ready.' },
     ],
@@ -73,6 +76,10 @@ test('persists phrase cards and their generated daily examples', async () => {
     { word: 'थोड़ी', romanization: 'thodi', meaning: 'a little' },
   ]);
   assert.equal(card.examples.length, 3);
+  assert.deepEqual(card.examples[0].wordGlosses, [
+    { word: 'मुझे', romanization: 'mujhe', meaning: 'to me' },
+    { word: 'थोड़ी', romanization: 'thodi', meaning: 'a little' },
+  ]);
   assert.equal((await readFlashcards(file)).cards[0].kind, 'phrase');
 });
 

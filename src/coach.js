@@ -98,12 +98,30 @@ const flashcardExamplesSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['text', 'romanization', 'translation'],
+        required: ['text', 'romanization', 'translation', 'wordGlosses'],
         properties: {
           text: { type: 'string' },
           romanization: { type: 'string' },
           translation: { type: 'string' },
+          wordGlosses: wordGlossSchema,
         },
+      },
+    },
+  },
+};
+
+const exampleGlossCorrectionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['examples'],
+  properties: {
+    examples: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['index', 'wordGlosses'],
+        properties: { index: { type: 'integer' }, wordGlosses: wordGlossSchema },
       },
     },
   },
@@ -306,7 +324,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
         let batch = await requestStructured({
           apiKey,
           model,
-          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For every line, return nativeScript as the complete original wording in its normal native script: use Devanagari for Hindi even when the supplied lyric is written in Latin transliteration, Gurmukhi for Punjabi, Perso-Arabic script for Urdu, and unchanged Latin text for English. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear when there is not enough evidence. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty. Preserve every input index exactly once and do not quote unrelated lyrics.`,
+          instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For every line, return nativeScript as the complete original wording in its normal native script: use Devanagari for Hindi even when the supplied lyric is written in Latin transliteration, Gurmukhi for Punjabi, Perso-Arabic script for Urdu, and unchanged Latin text for English. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear only for a non-lexical fragment with no usable language signal. A complete grammatical sentence must never be marked unclear: classify it from its vocabulary, grammar, script, and the nearby supplied lines. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty when the text is genuinely ambiguous. Preserve every input index exactly once and do not quote unrelated lyrics.`,
           input: { track: { title: track.title, artist: track.artist }, lines: compactLines },
           name: 'song_language_coach',
           schema: analysisSchema,
@@ -340,10 +358,10 @@ function createCoach({ apiKey, model, targetLanguage }) {
       };
     },
     async generateFlashcardExamples(card) {
-      return requestStructured({
+      let generated = await requestStructured({
         apiKey,
         model,
-        instructions: `You are creating a saved-vocabulary card for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. The saved item may be a single word or a complete phrase, and it may be supplied in native script, Latin-script transliteration, or English. Return nativeScript as the natural ${targetLanguage || card.language || 'target-language'} word or phrase in its normal native script (Devanagari for Hindi). If the input is English, translate it into a natural everyday expression rather than transliterating the English. Return a readable Latin-script romanization of the full item, its concise natural English meaning, and the canonical short language name. Romanization must be entirely lowercase, including its first word. In wordGlosses, cover every lexical word in nativeScript with its exact surface form, lowercase romanization, and short contextual English meaning. Write exactly three short, distinct example sentences that someone would genuinely say in ordinary life. Avoid song lyrics, poetry, archaic language, textbook contrivances, and unnatural repetition. Each example must naturally use the saved item or a grammatically appropriate inflected variation. Return each example in native script, an entirely lowercase Latin-script romanization, and concise natural English. Do not add explanations.`,
+        instructions: `You are creating a saved-vocabulary card for an adult learning ${targetLanguage || card.language || 'Hindi'} for real daily conversation. The saved item may be a single word or a complete phrase, and it may be supplied in native script, Latin-script transliteration, or English. Return nativeScript as the natural ${targetLanguage || card.language || 'target-language'} word or phrase in its normal native script (Devanagari for Hindi). If the input is English, translate it into a natural everyday expression rather than transliterating the English. Return a readable Latin-script romanization of the full item, its concise natural English meaning, and the canonical short language name. Romanization must be entirely lowercase, including its first word. In wordGlosses, cover every lexical word in nativeScript with its exact surface form, lowercase romanization, and short contextual English meaning. Write exactly three short, distinct example sentences that someone would genuinely say in ordinary life. Avoid song lyrics, poetry, archaic language, textbook contrivances, and unnatural repetition. Each example must naturally use the saved item or a grammatically appropriate inflected variation. Return each example in native script, an entirely lowercase Latin-script romanization, and concise natural English. In each example's wordGlosses, cover every lexical word in that example with its exact surface form, lowercase romanization, and short contextual English meaning. Never combine multiple source words into one gloss. Do not add explanations.`,
         input: {
           kind: card.kind || 'word',
           word: card.word,
@@ -355,8 +373,22 @@ function createCoach({ apiKey, model, targetLanguage }) {
         },
         name: 'flashcard_conversation_examples',
         schema: flashcardExamplesSchema,
-        maxOutputTokens: 1200,
+        maxOutputTokens: 2200,
       });
+      const missing = findMissingExampleGlosses(generated.examples);
+      if (missing.length) {
+        const correction = await requestStructured({
+          apiKey,
+          model,
+          instructions: 'Supply a separate gloss for every requested word from each example. Copy each source word exactly without punctuation. Return its lowercase Latin-script romanization and short contextual English meaning. Never combine words.',
+          input: { examples: missing },
+          name: 'missing_example_word_glosses',
+          schema: exampleGlossCorrectionSchema,
+          maxOutputTokens: 1600,
+        });
+        generated = mergeExampleGlossCorrections(generated, correction);
+      }
+      return generated;
     },
     async answerLyricQuestion({ track, focus, nearby, history, question }) {
       return requestStructured({
@@ -423,6 +455,28 @@ function mergeGlossCorrections(batch, correction) {
   };
 }
 
+function findMissingExampleGlosses(examples = []) {
+  return examples.map((example, index) => {
+    const covered = new Set((example.wordGlosses || []).map((gloss) => analysisLineKey(gloss.word)));
+    return {
+      index,
+      text: example.text,
+      words: lexicalWords(example.text).filter((word) => !covered.has(analysisLineKey(word))),
+    };
+  }).filter((example) => example.words.length);
+}
+
+function mergeExampleGlossCorrections(generated, correction) {
+  const additions = new Map((correction.examples || []).map((example) => [example.index, example.wordGlosses || []]));
+  return {
+    ...generated,
+    examples: (generated.examples || []).map((example, index) => ({
+      ...example,
+      wordGlosses: [...(example.wordGlosses || []), ...(additions.get(index) || [])],
+    })),
+  };
+}
+
 function analysisLineKey(text) {
   return String(text || '').normalize('NFKC').trim().toLocaleLowerCase()
     .replace(/\s+/g, ' ')
@@ -455,4 +509,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections };
+module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections };

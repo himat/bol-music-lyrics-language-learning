@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections } = require('../src/coach');
+const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -24,6 +24,8 @@ test('requires complete normalized vocabulary, word glosses, and three examples'
   assert.deepEqual(flashcardExamplesSchema.properties.wordGlosses.items.required, ['word', 'romanization', 'meaning']);
   assert.equal(flashcardExamplesSchema.properties.examples.minItems, 3);
   assert.equal(flashcardExamplesSchema.properties.examples.maxItems, 3);
+  assert.deepEqual(flashcardExamplesSchema.properties.examples.items.required, ['text', 'romanization', 'translation', 'wordGlosses']);
+  assert.deepEqual(flashcardExamplesSchema.properties.examples.items.properties.wordGlosses.items.required, ['word', 'romanization', 'meaning']);
 });
 
 test('keeps the fast translation response minimal', () => {
@@ -160,4 +162,17 @@ test('finds missing daily-alternative glosses', () => {
     [{ index: 7, text: 'poetic line' }],
     [{ index: 7, wordGlosses: [{ word: 'poetic' }, { word: 'line' }], dailyAlternative: 'मेरी आँखों में देखो', dailyAlternativeWordGlosses: [{ word: 'मेरी' }] }],
   )[0].dailyAlternativeWords, ['आँखों', 'में', 'देखो']);
+});
+
+test('repairs helper words omitted from generated example glosses', () => {
+  const generated = { examples: [{
+    text: 'तुम मेरी जानाँ हो।',
+    wordGlosses: [{ word: 'तुम' }, { word: 'मेरी' }, { word: 'जानाँ' }],
+  }] };
+  assert.deepEqual(findMissingExampleGlosses(generated.examples), [
+    { index: 0, text: 'तुम मेरी जानाँ हो।', words: ['हो'] },
+  ]);
+  assert.deepEqual(mergeExampleGlossCorrections(generated, {
+    examples: [{ index: 0, wordGlosses: [{ word: 'हो', romanization: 'ho', meaning: 'are' }] }],
+  }).examples[0].wordGlosses.at(-1), { word: 'हो', romanization: 'ho', meaning: 'are' });
 });

@@ -343,22 +343,41 @@ function flashcardEmptyHTML() {
   return '<div class="flashcard-empty"><span>✦</span><h3>Save your first word or phrase</h3><p>Save vocabulary from the Daily Speech Coach or type your own above. Bol keeps its meaning, context, and everyday examples here.</p></div>';
 }
 
+function examplesNeedGlosses(card) {
+  return Boolean(card.examples?.length && card.examples.some((example) => !example.wordGlosses?.length));
+}
+
+function ensureExampleGlosses(card) {
+  if (!examplesNeedGlosses(card)) return;
+  const key = `example-glosses::${card.id}`;
+  if (state.flashcardGenerationKeys.has(key)) return;
+  state.flashcardGenerationKeys.add(key);
+  window.bol.generateFlashcardExamples({ ...card, context: card.contexts?.[0] || {} }).then((result) => {
+    state.flashcards = result.cards;
+    renderFlashcards();
+  }).catch((error) => {
+    showToast(String(error.message || 'Could not add meanings to the example words.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''), 5000);
+  }).finally(() => state.flashcardGenerationKeys.delete(key));
+}
+
 function renderFlashcardDetail(card) {
   if (!card) {
     elements.flashcardDetail.innerHTML = flashcardEmptyHTML();
     return;
   }
   const contexts = (card.contexts || []).map((context, index) => `<button type="button" class="context-card" data-source-index="${index}" title="Go to this song"><span class="context-card-copy"><p>${escapeHTML(context.text)}</p><em>${escapeHTML(context.translation)}</em><small>${escapeHTML([context.songTitle, context.artist].filter(Boolean).join(' · '))}</small></span><span class="context-card-action">Go to song&nbsp; →</span></button>`).join('');
-  const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${escapeHTML(example.text)}</p><em class="example-romanization">${escapeHTML(lowercaseRomanization(example.romanization))}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
+  const examples = (card.examples || []).map((example) => `<div class="example-card"><p>${glossedWordsHTML(example.text, example, 'lyric-word example-word')}</p><em class="example-romanization">${escapeHTML(lowercaseRomanization(example.romanization))}</em><em>${escapeHTML(example.translation)}</em></div>`).join('');
+  const glossStatus = examplesNeedGlosses(card) ? '<span class="example-gloss-status">Adding hover meanings to each word…</span>' : '';
   const itemLabel = card.kind === 'phrase' ? 'phrase' : 'word';
   elements.flashcardDetail.innerHTML = `<div class="flashcard-detail-header"><div><small class="vocabulary-kind">${itemLabel}</small><h3>${escapeHTML(card.nativeScript || card.word)}</h3><p class="flashcard-romanization">${escapeHTML(lowercaseRomanization(card.romanization))}</p><p class="flashcard-meaning">${escapeHTML(card.meaning)}</p></div><button class="delete-card-button" data-delete-card="${escapeHTML(card.id)}">Remove ${itemLabel}</button></div>
     <div class="flashcard-section"><small>WHERE YOU HEARD IT</small>${contexts || '<div class="context-card"><p>No source phrase saved.</p></div>'}</div>
-    <div class="flashcard-section"><small>EVERYDAY CONVERSATION</small>${examples || `<button class="retry-examples" data-retry-card="${escapeHTML(card.id)}">Generate daily examples</button>`}</div>`;
+    <div class="flashcard-section"><small>EVERYDAY CONVERSATION</small>${glossStatus}${examples || `<button class="retry-examples" data-retry-card="${escapeHTML(card.id)}">Generate daily examples</button>`}</div>`;
   elements.flashcardDetail.querySelector('[data-delete-card]')?.addEventListener('click', () => removeFlashcard(card.id));
   elements.flashcardDetail.querySelector('[data-retry-card]')?.addEventListener('click', (event) => retryFlashcardExamples(card, event.currentTarget));
   for (const button of elements.flashcardDetail.querySelectorAll('[data-source-index]')) {
     button.addEventListener('click', () => goToSavedSource(card.contexts[Number(button.dataset.sourceIndex)]));
   }
+  ensureExampleGlosses(card);
 }
 
 function sameTrack(context, track) {
@@ -1155,6 +1174,8 @@ async function controlPlayback(action) {
 async function seekToLine(line) {
   if (state.mode !== 'spotify' || !state.lyrics.synced || !Number.isFinite(line?.timeMs)) return;
   const positionMs = Math.max(0, line.timeMs);
+  state.coachPinned = false;
+  state.hoveredIndex = null;
   state.positionBase = positionMs;
   state.positionObservedAt = Date.now();
   state.track.positionMs = positionMs;
@@ -1326,7 +1347,7 @@ elements.coachPanel.addEventListener('focusin', () => {
   cancelCoachHoverExit();
 });
 document.addEventListener('pointermove', (event) => {
-  const word = event.target.closest?.('.coach-word, .lyric-word, .chat-context-word');
+  const word = event.target.closest?.('.coach-word, .lyric-word, .chat-context-word, .example-word');
   if (word) positionGlossAbovePointer(word, event);
 });
 elements.settingsForm.addEventListener('submit', async (event) => {
