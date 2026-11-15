@@ -19,6 +19,13 @@ test('builds stable analysis keys and separates changed inputs', () => {
   assert.notEqual(analysisCacheKey(request), analysisCacheKey({ ...request, lines: [{ ...request.lines[0], text: 'Different lyrics' }] }));
 });
 
+test('keeps translation cache keys stable when language analysis changes', () => {
+  assert.equal(
+    analysisCacheKey({ ...request, purpose: 'translation' }),
+    '1c1dea66fb21e8c769f43b27081662c28fe6547bb705d12b31ffcf13539e143d',
+  );
+});
+
 test('persists and retrieves song analysis', async (context) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bol-analysis-cache-'));
   context.after(() => fs.rm(directory, { recursive: true, force: true }));

@@ -90,6 +90,7 @@ function sanitizeExamples(examples = [], language = '') {
     text: clean(example.text),
     romanization: normalizeRomanization(example.romanization, language),
     translation: clean(example.translation),
+    wordGlosses: sanitizeWordGlosses(example.wordGlosses, language),
   })).filter((example) => example.text && example.translation);
 }
 

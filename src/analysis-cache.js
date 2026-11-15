@@ -2,11 +2,12 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const ANALYSIS_CACHE_VERSION = 'native-script-v2';
+const ANALYSIS_CACHE_VERSION = 'language-certainty-v3';
+const TRANSLATION_CACHE_VERSION = 'native-script-v2';
 
 function analysisCacheKey({ track, lines, model, targetLanguage, purpose = 'analysis' }) {
   const identity = {
-    version: ANALYSIS_CACHE_VERSION,
+    version: purpose === 'translation' ? TRANSLATION_CACHE_VERSION : ANALYSIS_CACHE_VERSION,
     model: String(model || ''),
     targetLanguage: String(targetLanguage || ''),
     track: {
@@ -29,7 +30,7 @@ function analysisCacheKey({ track, lines, model, targetLanguage, purpose = 'anal
 async function readAnalysisCache(cacheDirectory, key) {
   try {
     const stored = JSON.parse(await fs.readFile(path.join(cacheDirectory, `${key}.json`), 'utf8'));
-    return stored.version === ANALYSIS_CACHE_VERSION ? stored.analysis : null;
+    return [ANALYSIS_CACHE_VERSION, TRANSLATION_CACHE_VERSION].includes(stored.version) ? stored.analysis : null;
   } catch {
     return null;
   }
