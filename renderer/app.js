@@ -658,6 +658,9 @@ function apiKeyGuidance(purpose) {
   if (state.settings.apiKeyStatus === 'unreadable') {
     return `Bol found your saved API key, but macOS can no longer decrypt it. Open Settings and enter the key again to ${purpose}.`;
   }
+  if (state.settings.apiKey || state.settings.apiKeyStatus === 'saved') {
+    return `Loading English translations and daily-speech guidance…`;
+  }
   return `Add an API key, then analyze the song to ${purpose}.`;
 }
 
