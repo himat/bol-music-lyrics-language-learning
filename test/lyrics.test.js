@@ -19,3 +19,40 @@ test('rejects a short exact synced record when a complete duration match exists'
   const complete = { id: 2, duration: 308, syncedLyrics: Array.from({ length: 24 }, (_, index) => `[${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}.00] line ${index}`).join('\n') };
   assert.equal(chooseBestLyrics(shortExact, [shortExact, complete], 308000).id, 2);
 });
+
+test('prefers complete Devanagari lyrics over an equally complete split romanization', () => {
+  const romanized = {
+    id: 1,
+    duration: 196,
+    syncedLyrics: '[00:01.00] ek\n[00:02.00] do\n[00:03.00] teen\n[00:04.00] chaar\n[00:05.00] paanch\n[00:06.00] chhah',
+  };
+  const devanagari = {
+    id: 2,
+    duration: 196,
+    syncedLyrics: '[00:01.00] एक दो\n[00:03.00] तीन चार\n[00:06.00] पाँच छह',
+  };
+
+  assert.equal(chooseBestLyrics(null, [romanized, devanagari], 196000, 'Hindi').id, 2);
+});
+
+test('does not prefer native script when it omits a material part of the song', () => {
+  const completeRomanized = {
+    id: 1,
+    duration: 196,
+    syncedLyrics: '[00:01.00] ek do teen\n[00:06.00] chaar paanch chhah',
+  };
+  const incompleteDevanagari = {
+    id: 2,
+    duration: 196,
+    syncedLyrics: '[00:01.00] एक दो',
+  };
+
+  assert.equal(chooseBestLyrics(null, [completeRomanized, incompleteDevanagari], 196000, 'Hindi').id, 1);
+});
+
+test('prefers complete Gurmukhi lyrics for Punjabi', () => {
+  const romanized = { id: 1, duration: 200, syncedLyrics: '[00:01.00] tu kithe chaliye' };
+  const gurmukhi = { id: 2, duration: 200, syncedLyrics: '[00:01.00] ਤੂੰ ਕਿੱਥੇ ਚੱਲੀਏ' };
+
+  assert.equal(chooseBestLyrics(null, [romanized, gurmukhi], 200000, 'Punjabi').id, 2);
+});

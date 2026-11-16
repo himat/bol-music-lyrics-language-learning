@@ -149,7 +149,10 @@ app.whenReady().then(() => {
   ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
   ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
   ipcMain.handle('spotify:play-track', (_event, spotifyUrl, positionMs) => playSpotifyTrack(spotifyUrl, positionMs));
-  ipcMain.handle('lyrics:fetch', (_event, track) => fetchLyrics(track));
+  ipcMain.handle('lyrics:fetch', async (_event, track) => {
+    const settings = await loadSettings();
+    return fetchLyrics(track, settings.targetLanguage);
+  });
   ipcMain.handle('coach:translate', async (event, payload) => {
     const { requestId, ...translationPayload } = payload;
     translationControllers.get(event.sender)?.abort();
