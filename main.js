@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { getSpotifyState, controlSpotify, seekSpotify, playSpotifyTrack } = require('./src/spotify');
 const { fetchLyrics } = require('./src/lyrics');
-const { createCoach } = require('./src/coach');
+const { createCoach, reconcileTargetLanguageFits } = require('./src/coach');
 const { analysisCacheKey, readAnalysisCache, writeAnalysisCache } = require('./src/analysis-cache');
 const { readFlashcards, upsertFlashcard, deleteFlashcard, reviewFlashcard } = require('./src/flashcards');
 const { normalizeStudyState, ratingIntervals } = require('./src/spaced-repetition');
@@ -178,9 +178,12 @@ app.whenReady().then(() => {
     const settings = await loadSettings();
     const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
     const cached = await readAnalysisCache(analysisCachePath(), key);
-    if (cached) return cached;
+    if (cached) return reconcileTargetLanguageFits(cached, settings.targetLanguage);
     const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to translate and explain this song.');
-    const analysis = await createCoach({ ...settings, apiKey }).analyze(payload);
+    const analysis = reconcileTargetLanguageFits(
+      await createCoach({ ...settings, apiKey }).analyze(payload),
+      settings.targetLanguage,
+    );
     await writeAnalysisCache(analysisCachePath(), key, analysis);
     return analysis;
   });

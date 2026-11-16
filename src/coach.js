@@ -455,6 +455,26 @@ function mergeGlossCorrections(batch, correction) {
   };
 }
 
+function canonicalLanguageName(value) {
+  return String(value || '').normalize('NFKC').trim().toLocaleLowerCase()
+    .replace(/\s*\([^)]*\)\s*$/, '');
+}
+
+function reconcileTargetLanguageFits(analysis, targetLanguage) {
+  if (!analysis?.lines?.length) return analysis;
+  const target = canonicalLanguageName(targetLanguage);
+  return {
+    ...analysis,
+    lines: analysis.lines.map((line) => {
+      if (line.targetLanguageFit === 'mixed') return line;
+      const language = canonicalLanguageName(line.language);
+      if (!target || !language || ['unknown', 'unclear'].includes(language)) return line;
+      const targetLanguageFit = language === target ? 'target' : 'other';
+      return targetLanguageFit === line.targetLanguageFit ? line : { ...line, targetLanguageFit };
+    }),
+  };
+}
+
 function findMissingExampleGlosses(examples = []) {
   return examples.map((example, index) => {
     const covered = new Set((example.wordGlosses || []).map((gloss) => analysisLineKey(gloss.word)));
@@ -509,4 +529,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections };
+module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits };

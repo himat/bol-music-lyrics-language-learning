@@ -143,7 +143,7 @@ function analysisFor(index) { return state.analysis?.lines?.find((line) => line.
 function translationFor(index) { return analysisFor(index)?.translation || state.translations.get(index) || ''; }
 
 function languageLabel(analysis) {
-  if (!analysis || analysis.targetLanguageFit === 'target') return '';
+  if (!analysis) return '';
   return analysis.language || 'Language unclear';
 }
 
@@ -1001,6 +1001,7 @@ async function loadTrack(track) {
   state.coachIndex = -1;
   state.coachPinned = false;
   state.chatError = '';
+  elements.lyricsScroll.scrollTop = 0;
   renderTrack();
   setEmpty('Finding synchronized lyrics…', `${track.title} · ${track.artist}`);
   try {

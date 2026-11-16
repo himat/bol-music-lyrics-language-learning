@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections } = require('../src/coach');
+const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -17,6 +17,16 @@ test('extracts text from a raw Responses API payload', () => {
 
 test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
+});
+
+test('reconciles contradictory language fit values with the selected target', () => {
+  const analysis = reconcileTargetLanguageFits({ lines: [
+    { index: 0, language: 'Hindi', targetLanguageFit: 'other' },
+    { index: 1, language: 'Punjabi', targetLanguageFit: 'target' },
+    { index: 2, language: 'Hindi', targetLanguageFit: 'mixed' },
+    { index: 3, language: '', targetLanguageFit: 'unclear' },
+  ] }, 'Hindi');
+  assert.deepEqual(analysis.lines.map((line) => line.targetLanguageFit), ['target', 'other', 'mixed', 'unclear']);
 });
 
 test('requires complete normalized vocabulary, word glosses, and three examples', () => {
