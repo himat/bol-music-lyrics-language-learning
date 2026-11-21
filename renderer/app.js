@@ -943,9 +943,11 @@ function selectCoachLine(index, hovered = false) {
   const quote = glossedWordsHTML(line.text, analysis, 'coach-word');
   elements.coachBody.innerHTML = `<div class="coach-card">
     <div class="learning-verdict ${verdict.className}"><span class="verdict-icon">${verdict.className === 'learn' ? '✓' : '!'}</span><span><strong>${verdict.title}</strong><small>${escapeHTML(verdict.detail)}</small></span></div>
-    <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
-    <p class="coach-quote">${quote}</p>
-    <div class="coach-translation"><small>ENGLISH</small><span>${escapeHTML(analysis.translation)}</span></div>
+    <div class="coach-focus">
+      <div class="coach-badges"><span class="register-badge ${analysis.register}">${escapeHTML(analysis.register)}</span>${languageBadge}</div>
+      <p class="coach-quote">${quote}</p>
+      <div class="coach-translation"><small>ENGLISH</small><span>${escapeHTML(analysis.translation)}</span></div>
+    </div>
     <button class="save-phrase-button" data-save-lyric-phrase type="button">＋ Save phrase</button>
     <div class="explanation-block"><small>WHY IT MATTERS</small><p>${escapeHTML(analysis.explanation)}</p></div>
     ${alternative}
