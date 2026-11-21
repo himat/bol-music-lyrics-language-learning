@@ -56,3 +56,41 @@ test('prefers complete Gurmukhi lyrics for Punjabi', () => {
 
   assert.equal(chooseBestLyrics(null, [romanized, gurmukhi], 200000, 'Punjabi').id, 2);
 });
+
+test('rejects a stacked romanization and English translation track in favor of clean native lyrics', () => {
+  const bilingual = {
+    id: 1,
+    duration: 208,
+    syncedLyrics: [
+      '[00:04.33] naa ja, naa ja, naa ja',
+      "[00:04.33] Don't go, don't go, don't go",
+      "[00:09.81] ni kudi ayy tu alright, aaja nede, I won't bite",
+      "[00:09.81] Girl, you are alright, come closer, I won't bite",
+    ].join('\n'),
+  };
+  const gurmukhi = {
+    id: 2,
+    duration: 208,
+    syncedLyrics: [
+      '[00:04.39] ਨਾ ਜਾ, ਨਾ ਜਾ, ਨਾ ਜਾ',
+      "[00:09.81] ਨੀ ਕੁੜੀ ਏ ਤੂੰ alright, ਆਜਾ ਨੇੜੇ, I won't bite",
+    ].join('\n'),
+  };
+
+  assert.equal(chooseBestLyrics(null, [bilingual, gurmukhi], 208000, 'Hindi').id, 2);
+});
+
+test('rejects stacked translations when only romanized originals are available', () => {
+  const bilingual = {
+    id: 1,
+    duration: 208,
+    syncedLyrics: '[00:04.33] naa ja\n[00:04.33] do not go\n[00:09.81] aaja nede\n[00:09.81] come closer',
+  };
+  const clean = {
+    id: 2,
+    duration: 208,
+    syncedLyrics: '[00:04.33] naa ja\n[00:09.81] aaja nede',
+  };
+
+  assert.equal(chooseBestLyrics(null, [bilingual, clean], 208000, 'Hindi').id, 2);
+});

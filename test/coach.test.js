@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits } = require('../src/coach');
+const { createCoach, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits, retryTransientAnalysis } = require('../src/coach');
 
 test('extracts text from a raw Responses API payload', () => {
   const response = {
@@ -17,6 +17,45 @@ test('extracts text from a raw Responses API payload', () => {
 
 test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
+});
+
+test('retries one transient analysis failure before succeeding', async () => {
+  let attempts = 0;
+  const result = await retryTransientAnalysis(async () => {
+    attempts += 1;
+    if (attempts === 1) throw new DOMException('The operation timed out', 'TimeoutError');
+    return 'complete';
+  });
+
+  assert.equal(result, 'complete');
+  assert.equal(attempts, 2);
+});
+
+test('does not retry a permanent analysis failure', async () => {
+  let attempts = 0;
+  await assert.rejects(() => retryTransientAnalysis(async () => {
+    attempts += 1;
+    const error = new Error('Incorrect API key');
+    error.status = 401;
+    throw error;
+  }), /Incorrect API key/);
+  assert.equal(attempts, 1);
+});
+
+test('retries an omitted-line repair failure', async () => {
+  let attempts = 0;
+  const result = await retryTransientAnalysis(async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      const error = new Error('The language coach skipped lyric line 6.');
+      error.transient = true;
+      throw error;
+    }
+    return { index: 5 };
+  });
+
+  assert.deepEqual(result, { index: 5 });
+  assert.equal(attempts, 2);
 });
 
 test('reconciles contradictory language fit values with the selected target', () => {

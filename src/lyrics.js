@@ -65,6 +65,18 @@ const NATIVE_SCRIPT_PATTERNS = {
   urdu: /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u,
 };
 
+const SOUTH_ASIAN_SCRIPT_PATTERN = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\u0900-\u0dff]/u;
+
+function timedCoverageWordCount(timed) {
+  const wordsByTimestamp = new Map();
+  timed.forEach((line) => {
+    const wordCount = (line.text.match(/[\p{L}\p{M}\p{N}]+/gu) || []).length;
+    const previous = wordsByTimestamp.get(line.timeMs);
+    wordsByTimestamp.set(line.timeMs, previous == null ? wordCount : Math.min(previous, wordCount));
+  });
+  return [...wordsByTimestamp.values()].reduce((total, count) => total + count, 0);
+}
+
 function lyricsMetrics(record, targetLanguage) {
   const timed = parseLRC(record.syncedLyrics || '');
   const text = timed.length
@@ -76,21 +88,28 @@ function lyricsMetrics(record, targetLanguage) {
   const nativeScriptRatio = scriptPattern && letters.length
     ? letters.filter((character) => scriptPattern.test(character)).length / letters.length
     : 0;
+  const southAsianScriptRatio = letters.length
+    ? letters.filter((character) => SOUTH_ASIAN_SCRIPT_PATTERN.test(character)).length / letters.length
+    : 0;
+  const uniqueTimedCues = new Set(timed.map((line) => line.timeMs)).size;
   return {
     wordCount: words.length,
+    coverageWordCount: timed.length ? timedCoverageWordCount(timed) : words.length,
     endTimeMs: timed.at(-1)?.timeMs || 0,
     nativeScriptRatio,
+    southAsianScriptRatio,
+    stackedLineRatio: timed.length ? (timed.length - uniqueTimedCues) / timed.length : 0,
   };
 }
 
 function rankCompleteLyrics(records, exact, distance, targetLanguage) {
   if (!records.length) return null;
   const metrics = new Map(records.map((record) => [record, lyricsMetrics(record, targetLanguage)]));
-  const maxWordCount = Math.max(...records.map((record) => metrics.get(record).wordCount));
+  const maxCoverageWordCount = Math.max(...records.map((record) => metrics.get(record).coverageWordCount));
   const maxEndTimeMs = Math.max(...records.map((record) => metrics.get(record).endTimeMs));
   const complete = records.filter((record) => {
     const candidate = metrics.get(record);
-    const hasWordCoverage = !maxWordCount || candidate.wordCount >= maxWordCount * 0.9;
+    const hasWordCoverage = !maxCoverageWordCount || candidate.coverageWordCount >= maxCoverageWordCount * 0.9;
     const hasEndingCoverage = !maxEndTimeMs || candidate.endTimeMs >= maxEndTimeMs - 10000;
     return hasWordCoverage && hasEndingCoverage;
   });
@@ -99,7 +118,9 @@ function rankCompleteLyrics(records, exact, distance, targetLanguage) {
     const left = metrics.get(a);
     const right = metrics.get(b);
     return right.nativeScriptRatio - left.nativeScriptRatio
-      || right.wordCount - left.wordCount
+      || right.southAsianScriptRatio - left.southAsianScriptRatio
+      || left.stackedLineRatio - right.stackedLineRatio
+      || right.coverageWordCount - left.coverageWordCount
       || right.endTimeMs - left.endTimeMs
       || Number(b === exact) - Number(a === exact)
       || distance(a) - distance(b);

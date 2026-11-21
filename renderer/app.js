@@ -13,7 +13,7 @@ const state = {
   mode: 'waiting', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, translationRequestId: '', userBrowsing: false, programmaticScroll: false, browseTimer: null,
-  isAnalyzing: false, analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
+  isAnalyzing: false, analysisError: '', analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
   repeatMode: 'off', repeatRestarting: false,
   flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
   flashcardGenerationKeys: new Set(), flashcardGlossAttemptedKeys: new Set(), studyRatingInFlight: false,
@@ -667,7 +667,7 @@ function renderLyrics() {
   updateRows();
   renderCurrentLineDock();
   if (!state.analysis && !state.isAnalyzing && state.coachMode === 'coach') {
-    elements.coachBody.innerHTML = `<div class="coach-intro"><p>${apiKeyGuidance('get English translations and daily-speech guidance')}</p></div>`;
+    elements.coachBody.innerHTML = analysisUnavailableHTML('get English translations and daily-speech guidance');
   } else if (state.coachMode === 'chat') {
     renderChat();
   }
@@ -681,6 +681,17 @@ function apiKeyGuidance(purpose) {
     return `Loading English translations and daily-speech guidance…`;
   }
   return `Add an API key, then analyze the song to ${purpose}.`;
+}
+
+function analysisUnavailableHTML(purpose = 'see daily-speech guidance') {
+  if (state.analysisError) {
+    return `<div class="analysis-error" role="alert">
+      <strong>Analysis stopped</strong>
+      <p>${escapeHTML(state.analysisError)}</p>
+      <small>Use “Analyze this song” below to retry.</small>
+    </div>`;
+  }
+  return `<div class="coach-intro"><p>${apiKeyGuidance(purpose)}</p></div>`;
 }
 
 function cancelCoachHoverExit() {
@@ -912,7 +923,9 @@ function selectCoachLine(index, hovered = false) {
       </div>`;
       updateAnalysisElapsed();
     } else {
-      elements.coachBody.innerHTML = `<div class="coach-intro"><p>${state.analysis ? 'This line has no analysis yet.' : apiKeyGuidance('see daily-speech guidance')}</p></div>`;
+      elements.coachBody.innerHTML = state.analysis
+        ? '<div class="coach-intro"><p>This line has no analysis yet.</p></div>'
+        : analysisUnavailableHTML();
     }
     return;
   }
@@ -992,10 +1005,12 @@ async function loadTrack(track) {
   state.translationRequestId = '';
   state.analysis = null;
   state.isAnalyzing = false;
+  state.analysisError = '';
   stopAnalysisTimer();
   elements.translationStatus.hidden = true;
   elements.syncStatus.hidden = true;
   elements.languageDetectionStatus.hidden = true;
+  elements.languageDetectionStatus.title = '';
   state.activeIndex = -1;
   state.hoveredIndex = null;
   state.coachIndex = -1;
@@ -1060,10 +1075,12 @@ async function analyzeCurrentSong(automatic = false) {
   syncAnalyzeButtonVisibility();
   elements.analyzeButton.disabled = true;
   state.isAnalyzing = true;
+  state.analysisError = '';
   startAnalysisTimer();
   elements.languageDetectionStatus.hidden = false;
   elements.languageDetectionStatus.classList.remove('unavailable');
   elements.languageDetectionStatus.textContent = 'Detecting languages…';
+  elements.languageDetectionStatus.title = '';
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
   elements.translationStatus.hidden = false;
   if (state.coachMode === 'coach') elements.coachBody.innerHTML = `<div class="analysis-loading">
@@ -1076,6 +1093,7 @@ async function analyzeCurrentSong(automatic = false) {
   try {
     state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
     state.isAnalyzing = false;
+    state.analysisError = '';
     stopAnalysisTimer();
     renderTrackLanguages();
     renderLyrics();
@@ -1083,6 +1101,7 @@ async function analyzeCurrentSong(automatic = false) {
     selectCoachLine(Math.max(0, state.activeIndex), false);
     elements.analyzeButton.hidden = true;
     elements.translationStatus.hidden = true;
+    elements.languageDetectionStatus.title = '';
   } catch (error) {
     state.isAnalyzing = false;
     stopAnalysisTimer();
@@ -1092,9 +1111,12 @@ async function analyzeCurrentSong(automatic = false) {
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
     elements.translationStatus.hidden = true;
-    const message = String(error.message || 'Translation failed. Please try again.').replace(/^Error invoking remote method '[^']+': Error:\s*/, '');
+    const message = String(error.message || 'Analysis failed. Please try again.')
+      .replace(/^Error invoking remote method '[^']+':\s*(?:\w*Error:\s*)?/, '');
+    state.analysisError = message;
+    elements.languageDetectionStatus.title = message;
     if (state.coachMode === 'chat') renderChat();
-    else elements.coachBody.innerHTML = `<div class="coach-intro"><p>${escapeHTML(message)}</p></div>`;
+    else elements.coachBody.innerHTML = analysisUnavailableHTML();
     syncAnalyzeButtonVisibility();
     if (!automatic || !/API key/i.test(message)) showToast(message, 6000);
   }

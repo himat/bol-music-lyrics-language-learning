@@ -172,10 +172,36 @@ async function requestStructured({ apiKey, model, instructions, input, name, sch
     signal: AbortSignal.timeout(timeoutMs),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message || `OpenAI returned ${response.status}.`);
+  if (!response.ok) {
+    const error = new Error(body.error?.message || `OpenAI returned ${response.status}.`);
+    error.status = response.status;
+    throw error;
+  }
   const outputText = extractOutputText(body);
   if (!outputText) throw new Error('The language coach returned no analysis.');
   return JSON.parse(outputText);
+}
+
+function isTransientAnalysisError(error) {
+  if (error?.transient) return true;
+  const status = Number(error?.status || 0);
+  if ([408, 409, 429].includes(status) || status >= 500) return true;
+  if (['AbortError', 'TimeoutError', 'SyntaxError'].includes(error?.name)) return true;
+  return /timed?\s*out|network|fetch failed|connection|no analysis|unexpected end|invalid json/i.test(String(error?.message || ''));
+}
+
+async function retryTransientAnalysis(operation, attempts = 2) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 >= attempts || !isTransientAnalysisError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+    }
+  }
+  throw lastError;
 }
 
 function extractCompleteArrayObjects(text, propertyName) {
@@ -321,7 +347,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
     async analyze({ track, lines }) {
       const plan = planAnalysis(lines);
       const batches = await Promise.all(plan.uniqueChunks.map(async (compactLines) => {
-        let batch = await requestStructured({
+        let batch = await retryTransientAnalysis(() => requestStructured({
           apiKey,
           model,
           instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For every line, return nativeScript as the complete original wording in its normal native script: use Devanagari for Hindi even when the supplied lyric is written in Latin transliteration, Gurmukhi for Punjabi, Perso-Arabic script for Urdu, and unchanged Latin text for English. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear only for a non-lexical fragment with no usable language signal. A complete grammatical sentence must never be marked unclear: classify it from its vocabulary, grammar, script, and the nearby supplied lines. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty when the text is genuinely ambiguous. Preserve every input index exactly once and do not quote unrelated lyrics.`,
@@ -329,11 +355,34 @@ function createCoach({ apiKey, model, targetLanguage }) {
           name: 'song_language_coach',
           schema: analysisSchema,
           maxOutputTokens: 6000,
-        });
+        }));
+        const returnedIndexes = new Set((batch.lines || []).map((line) => line.index));
+        const omittedLines = compactLines.filter((line) => !returnedIndexes.has(line.index));
+        if (omittedLines.length) {
+          const recoveredLines = await Promise.all(omittedLines.map((omittedLine) => retryTransientAnalysis(async () => {
+            const repair = await requestStructured({
+              apiKey,
+              model,
+              instructions: `Analyze exactly the one omitted lyric line for an adult learner whose target language is ${targetLanguage || 'Hindi'}. Identify its actual language; return its complete wording in the normal native script, concise English translation, readable Latin romanization, real-world register, and a short usage explanation. Set targetLanguageFit relative to ${targetLanguage || 'Hindi'}. Include a separate word gloss for every lexical token. If the lyric is not natural daily speech, include a common daily alternative with its English translation and complete word glosses; otherwise leave all daily-alternative fields empty. Preserve the supplied index exactly and return no unrelated lines.`,
+              input: { track: { title: track.title, artist: track.artist }, lines: [omittedLine] },
+              name: 'song_language_coach_line_repair',
+              schema: analysisSchema,
+              maxOutputTokens: 2400,
+            });
+            const recovered = repair.lines?.find((line) => line.index === omittedLine.index);
+            if (!recovered) {
+              const error = new Error(`The language coach skipped lyric line ${omittedLine.index + 1}.`);
+              error.transient = true;
+              throw error;
+            }
+            return recovered;
+          })));
+          batch = { ...batch, lines: [...batch.lines, ...recoveredLines] };
+        }
         for (let attempt = 0; attempt < 1; attempt += 1) {
           const missing = findMissingGlosses(compactLines, batch.lines);
           if (!missing.length) break;
-          const correction = await requestStructured({
+          const correction = await retryTransientAnalysis(() => requestStructured({
             apiKey,
             model,
             instructions: 'Supply separate word glosses for every requested original and daily-alternative word. Copy each surface word exactly. Never combine words. Return a readable Latin-script romanization and a short contextual English meaning for each one. Use an empty array when a category has no requested words.',
@@ -341,7 +390,7 @@ function createCoach({ apiKey, model, targetLanguage }) {
             name: 'missing_word_glosses',
             schema: glossCorrectionSchema,
             maxOutputTokens: 3000,
-          });
+          }));
           batch = mergeGlossCorrections(batch, correction);
         }
         return batch;
@@ -529,4 +578,4 @@ function extractOutputText(response) {
     .join('');
 }
 
-module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits };
+module.exports = { createCoach, analysisSchema, translationSchema, flashcardExamplesSchema, lyricChatSchema, trimChatHistory, extractOutputText, extractCompleteArrayObjects, planAnalysis, analysisLineKey, lexicalWords, findMissingGlosses, mergeGlossCorrections, findMissingExampleGlosses, mergeExampleGlossCorrections, reconcileTargetLanguageFits, isTransientAnalysisError, retryTransientAnalysis };
