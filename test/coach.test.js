@@ -19,6 +19,112 @@ test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
 });
 
+test('publishes the current line and repeated occurrences before slower batches finish', async () => {
+  const originalFetch = global.fetch;
+  let releaseSlow;
+  const slow = new Promise((resolve) => { releaseSlow = resolve; });
+  let signalProgress;
+  const firstProgress = new Promise((resolve) => { signalProgress = resolve; });
+  const requests = [];
+  let active = 0;
+  let maxActive = 0;
+  global.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    const input = JSON.parse(request.input);
+    requests.push(input.lines.map((line) => line.index));
+    maxActive = Math.max(maxActive, ++active);
+    if (input.lines[0].index !== 7) await slow;
+    active -= 1;
+    return { ok: true, json: async () => ({ output_text: JSON.stringify({
+      language: 'Hindi', summary: '', lines: input.lines.map(({ index, text }) => ({
+        index, translation: text, wordGlosses: [{ word: text, romanization: text, meaning: text }],
+      })),
+    }) }) };
+  };
+  const lines = Array.from({ length: 24 }, (_, index) => ({ index, text: `word${index}` }));
+  lines.push({ index: 24, text: 'word7' });
+  let finished = false;
+  try {
+    const pending = createCoach({ apiKey: 'test' }).analyze({ track: {}, lines, priorityIndex: 24 }, (progress) => signalProgress(progress));
+    pending.then(() => { finished = true; });
+    const progress = await firstProgress;
+    assert.deepEqual(requests[0], [7]);
+    assert.equal(finished, false);
+    assert.deepEqual(progress.lines.map(({ index }) => index), [7, 24]);
+    assert.equal(progress.total, 25);
+    releaseSlow();
+    const result = await pending;
+    assert.equal(result.lines.length, 25);
+    assert.ok(maxActive <= 3);
+  } finally { releaseSlow(); global.fetch = originalFetch; }
+});
+
+test('publishes usable coaching before waiting for missing gloss repairs', async () => {
+  const originalFetch = global.fetch;
+  let releaseRepair;
+  const repairWait = new Promise((resolve) => { releaseRepair = resolve; });
+  const progress = [];
+  global.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    if (request.text.format.name === 'missing_word_glosses') {
+      assert.equal(progress.length, 1);
+      await repairWait;
+      return { ok: true, json: async () => ({ output_text: JSON.stringify({ lines: [
+        { index: 0, wordGlosses: [{ word: 'hello', romanization: 'hello', meaning: 'greeting' }], dailyAlternativeWordGlosses: [] },
+      ] }) }) };
+    }
+    return { ok: true, json: async () => ({ output_text: JSON.stringify({
+      language: 'English', summary: '', lines: [{ index: 0, translation: 'hello', wordGlosses: [], dailyAlternativeWordGlosses: [] }],
+    }) }) };
+  };
+  try {
+    const pending = createCoach({ apiKey: 'test' }).analyze({ track: {}, lines: [{ index: 0, text: 'hello' }] }, (event) => {
+      progress.push(event);
+      if (progress.length === 1) releaseRepair();
+    });
+    const result = await pending;
+    assert.equal(progress.length, 2);
+    assert.equal(result.lines[0].wordGlosses[0].meaning, 'greeting');
+  } finally { releaseRepair(); global.fetch = originalFetch; }
+});
+
+test('keeps publishing successful batches when another batch fails', async () => {
+  const originalFetch = global.fetch;
+  const progress = [];
+  global.fetch = async (_url, options) => {
+    const { lines } = JSON.parse(JSON.parse(options.body).input);
+    if (lines[0].index === 0) return { ok: false, status: 400, json: async () => ({ error: { message: 'Batch rejected' } }) };
+    return { ok: true, json: async () => ({ output_text: JSON.stringify({ language: 'Hindi', summary: '',
+      lines: lines.map(({ index, text }) => ({ index, translation: text, wordGlosses: [{ word: text }] })),
+    }) }) };
+  };
+  try {
+    const lines = Array.from({ length: 13 }, (_, index) => ({ index, text: `word${index}` }));
+    await assert.rejects(createCoach({ apiKey: 'test' }).analyze({ track: {}, lines }, (event) => progress.push(event)), /Batch rejected/);
+    assert.equal(progress.at(-1).completed, 7);
+    assert.deepEqual(progress.at(-1).lines.map(({ index }) => index), [6, 7, 8, 9, 10, 11, 12]);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('cancels old analysis without starting queued batches or publishing late progress', async () => {
+  const originalFetch = global.fetch;
+  const controller = new AbortController();
+  let calls = 0;
+  const progress = [];
+  global.fetch = async (_url, options) => {
+    calls += 1;
+    return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true }));
+  };
+  try {
+    const lines = Array.from({ length: 30 }, (_, index) => ({ index, text: `word${index}` }));
+    const pending = createCoach({ apiKey: 'test' }).analyze({ track: {}, lines }, (event) => progress.push(event), controller.signal);
+    controller.abort();
+    await assert.rejects(pending);
+    assert.equal(calls, 3);
+    assert.equal(progress.length, 0);
+  } finally { controller.abort(); global.fetch = originalFetch; }
+});
+
 test('retries one transient analysis failure before succeeding', async () => {
   let attempts = 0;
   const result = await retryTransientAnalysis(async () => {

@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('bol', {
     return () => ipcRenderer.removeListener('coach:translation-progress', handler);
   },
   analyze: (payload) => ipcRenderer.invoke('coach:analyze', payload),
+  onAnalysisProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('coach:analysis-progress', handler);
+    return () => ipcRenderer.removeListener('coach:analysis-progress', handler);
+  },
   askCoach: (payload) => ipcRenderer.invoke('coach:chat', payload),
   listFlashcards: () => ipcRenderer.invoke('flashcards:list'),
   saveFlashcard: (payload) => ipcRenderer.invoke('flashcards:save', payload),

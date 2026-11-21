@@ -157,7 +157,19 @@ function trimChatHistory(messages, limit = 8) {
     .map(({ role, content }) => ({ role, content: content.trim() }));
 }
 
-async function requestStructured({ apiKey, model, instructions, input, name, schema, maxOutputTokens, timeoutMs = 60000 }) {
+async function requestStructured(options) {
+  const startedAt = Date.now();
+  try {
+    const result = await requestStructuredResponse(options);
+    console.info('[coach] request complete', { kind: options.name, elapsedMs: Date.now() - startedAt });
+    return result;
+  } catch (error) {
+    console.info('[coach] request failed', { kind: options.name, elapsedMs: Date.now() - startedAt, status: error.status || error.name });
+    throw error;
+  }
+}
+
+async function requestStructuredResponse({ apiKey, model, instructions, input, name, schema, maxOutputTokens, timeoutMs = 60000, signal }) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -169,7 +181,7 @@ async function requestStructured({ apiKey, model, instructions, input, name, sch
       text: { format: { type: 'json_schema', name, strict: true, schema } },
       max_output_tokens: maxOutputTokens,
     }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   });
   const body = await response.json();
   if (!response.ok) {
@@ -344,10 +356,35 @@ function createCoach({ apiKey, model, targetLanguage }) {
         })),
       };
     },
-    async analyze({ track, lines }) {
+    async analyze({ track, lines, priorityIndex }, onProgress, signal) {
+      const requestAnalysis = async (options) => {
+        try {
+          signal?.throwIfAborted();
+          return await requestStructured({ ...options, signal });
+        } catch (error) {
+          if (signal?.aborted) throw new Error('Analysis canceled after changing songs.');
+          throw error;
+        }
+      };
       const plan = planAnalysis(lines);
-      const batches = await Promise.all(plan.uniqueChunks.map(async (compactLines) => {
-        let batch = await retryTransientAnalysis(() => requestStructured({
+      const priorityCanonical = plan.originals.find((line) => line.index === priorityIndex)?.canonicalIndex;
+      const unique = plan.uniqueChunks.flat();
+      const priorityLine = unique.find((line) => line.index === priorityCanonical);
+      const remaining = unique.filter((line) => line !== priorityLine);
+      const chunks = priorityLine ? [[priorityLine]] : [];
+      for (let index = 0; index < remaining.length; index += 6) chunks.push(remaining.slice(index, index + 6));
+      const available = new Map();
+      const publish = (batch) => {
+        for (const line of batch.lines || []) available.set(line.index, line);
+        const ready = plan.originals.flatMap(({ index, canonicalIndex }) => {
+          const line = available.get(canonicalIndex);
+          return line ? [{ ...line, index }] : [];
+        });
+        if (!signal?.aborted) onProgress?.({ lines: ready, completed: ready.length, total: plan.originals.length });
+      };
+      const analyzeBatch = async (compactLines) => {
+        const startedAt = Date.now();
+        let batch = await retryTransientAnalysis(() => requestAnalysis({
           apiKey,
           model,
           instructions: `You are a careful language teacher for an adult learner whose target is ${targetLanguage || 'Hindi'} and whose goal is natural daily conversation, not imitation of song lyrics. Identify the actual language of every individual line; songs often switch among Hindi, Punjabi, Urdu, English, and regional languages. Use only the canonical short language name in the language field, such as Hindi, Punjabi, Urdu, or English—do not append script or transliteration notes. Never call Punjabi or Urdu Hindi just because they share vocabulary. For every line, return nativeScript as the complete original wording in its normal native script: use Devanagari for Hindi even when the supplied lyric is written in Latin transliteration, Gurmukhi for Punjabi, Perso-Arabic script for Urdu, and unchanged Latin text for English. For each line, set targetLanguageFit to target only when it is genuinely ${targetLanguage || 'Hindi'}, mixed when the line itself code-switches between the target and another language, other when it is another language, and unclear only for a non-lexical fragment with no usable language signal. A complete grammatical sentence must never be marked unclear: classify it from its vocabulary, grammar, script, and the nearby supplied lines. Translate each supplied line into concise natural English. Add a readable Latin-script romanization of the complete original line, preserving any words already written in Latin script. Label its real-world register. Explain idioms, grammar, cultural context, language differences, or song-specific compression in one short sentence. In wordGlosses, cover every individual lexical token in the original line, including pronouns, particles, postpositions, auxiliaries, and short helper verbs such as ले, दे, है, and ना. Each entry must contain exactly one surface word copied without surrounding punctuation, that word's Latin-script romanization, and its short contextual English meaning. Never combine multiple words into one entry. A repeated surface word only needs one entry because it will be reused at every occurrence. Omit only pure punctuation and non-lexical vocalizations. For words already in Latin script, repeat the surface word as the romanization. Before answering, check that every lexical token has a matching wordGlosses entry. For non-target lines, explicitly say that the learner should not treat the phrase as ${targetLanguage || 'Hindi'}. If a line is poetic, uncommon, overly formal, gendered in a relevant way, or unnatural in daily speech, put a genuinely common daily alternative in dailyAlternative, its concise English translation in dailyAlternativeTranslation, and complete per-word romanization/meaning entries in dailyAlternativeWordGlosses following the same one-word rules. Do not put the English translation inside dailyAlternative itself. If it is already natural daily speech, all three daily-alternative fields must be empty (an empty string, an empty string, and an empty array). Never invent certainty when the text is genuinely ambiguous. Preserve every input index exactly once and do not quote unrelated lyrics.`,
@@ -356,11 +393,13 @@ function createCoach({ apiKey, model, targetLanguage }) {
           schema: analysisSchema,
           maxOutputTokens: 6000,
         }));
+        publish(batch);
+        console.info('[coach] batch available', { lineCount: compactLines.length, elapsedMs: Date.now() - startedAt });
         const returnedIndexes = new Set((batch.lines || []).map((line) => line.index));
         const omittedLines = compactLines.filter((line) => !returnedIndexes.has(line.index));
         if (omittedLines.length) {
           const recoveredLines = await Promise.all(omittedLines.map((omittedLine) => retryTransientAnalysis(async () => {
-            const repair = await requestStructured({
+            const repair = await requestAnalysis({
               apiKey,
               model,
               instructions: `Analyze exactly the one omitted lyric line for an adult learner whose target language is ${targetLanguage || 'Hindi'}. Identify its actual language; return its complete wording in the normal native script, concise English translation, readable Latin romanization, real-world register, and a short usage explanation. Set targetLanguageFit relative to ${targetLanguage || 'Hindi'}. Include a separate word gloss for every lexical token. If the lyric is not natural daily speech, include a common daily alternative with its English translation and complete word glosses; otherwise leave all daily-alternative fields empty. Preserve the supplied index exactly and return no unrelated lines.`,
@@ -378,11 +417,12 @@ function createCoach({ apiKey, model, targetLanguage }) {
             return recovered;
           })));
           batch = { ...batch, lines: [...batch.lines, ...recoveredLines] };
+          publish(batch);
         }
         for (let attempt = 0; attempt < 1; attempt += 1) {
           const missing = findMissingGlosses(compactLines, batch.lines);
           if (!missing.length) break;
-          const correction = await retryTransientAnalysis(() => requestStructured({
+          const correction = await retryTransientAnalysis(() => requestAnalysis({
             apiKey,
             model,
             instructions: 'Supply separate word glosses for every requested original and daily-alternative word. Copy each surface word exactly. Never combine words. Return a readable Latin-script romanization and a short contextual English meaning for each one. Use an empty array when a category has no requested words.',
@@ -392,9 +432,23 @@ function createCoach({ apiKey, model, targetLanguage }) {
             maxOutputTokens: 3000,
           }));
           batch = mergeGlossCorrections(batch, correction);
+          publish(batch);
         }
+        console.info('[coach] batch complete', { lineCount: compactLines.length, elapsedMs: Date.now() - startedAt });
         return batch;
+      };
+      let nextChunk = 0;
+      const batches = new Array(chunks.length);
+      const failures = [];
+      await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, async () => {
+        while (nextChunk < chunks.length) {
+          signal?.throwIfAborted();
+          const index = nextChunk++;
+          try { batches[index] = await analyzeBatch(chunks[index]); }
+          catch (error) { failures.push(error); }
+        }
       }));
+      if (failures.length) throw failures[0];
       const byCanonicalIndex = new Map(batches.flatMap((batch) => batch.lines).map((line) => [line.index, line]));
       return {
         language: batches[0]?.language || targetLanguage || 'Unknown',

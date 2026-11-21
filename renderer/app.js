@@ -13,7 +13,7 @@ const state = {
   mode: 'waiting', settings: { targetLanguage: 'Hindi', model: 'gpt-4o-mini', apiKey: '' },
   lastRealTrackKey: '', positionBase: 0, positionObservedAt: Date.now(), toastTimer: null,
   loadToken: 0, translationRequestId: '', userBrowsing: false, programmaticScroll: false, browseTimer: null,
-  isAnalyzing: false, analysisError: '', analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
+  isAnalyzing: false, analysisRequestId: '', analysisError: '', analysisStartedAt: 0, analysisTimer: null, spotifyPollInFlight: false,
   repeatMode: 'off', repeatRestarting: false,
   flashcards: [], selectedFlashcardId: null, flashcardMode: 'browse', currentStudyCardId: null, studyRevealed: false,
   flashcardGenerationKeys: new Set(), flashcardGlossAttemptedKeys: new Set(), studyRatingInFlight: false,
@@ -735,11 +735,16 @@ function scrollToActive() {
   setTimeout(() => { state.programmaticScroll = false; }, 650);
 }
 
+function setCoachPinned(pinned) {
+  state.coachPinned = pinned;
+  elements.coachPanel.classList.toggle('pinned', pinned);
+}
+
 function resumeLiveLine() {
   if (state.activeIndex < 0) return;
   cancelCoachHoverExit();
   clearTimeout(state.browseTimer);
-  state.coachPinned = false;
+  setCoachPinned(false);
   state.hoveredIndex = null;
   state.userBrowsing = false;
   updateRows();
@@ -757,7 +762,7 @@ function setCoachMode(mode, focusInput = false) {
 }
 
 function syncAnalyzeButtonVisibility() {
-  elements.analyzeButton.hidden = state.coachMode !== 'coach' || !state.lyrics?.lines?.length || Boolean(state.analysis);
+  elements.analyzeButton.hidden = state.coachMode !== 'coach' || !state.lyrics?.lines?.length || Boolean(state.analysis && !state.analysis.partial);
 }
 
 function chatMessageHTML(content) {
@@ -868,7 +873,7 @@ async function sendChatQuestion(rawQuestion) {
   const index = state.coachIndex >= 0 ? state.coachIndex : state.activeIndex;
   const context = chatContext(index);
   if (!question || !context || state.chatSending) return;
-  state.coachPinned = true;
+  setCoachPinned(true);
   const chat = currentChat();
   const previousHistory = chat.messages.slice(-8).map((message) => ({ role: message.role, content: chatHistoryContent(message) }));
   chat.messages.push({ role: 'user', content: question, lineIndex: index, createdAt: Date.now() });
@@ -916,14 +921,14 @@ function selectCoachLine(index, hovered = false) {
     if (state.isAnalyzing) {
       elements.coachBody.innerHTML = `<div class="analysis-loading line-loading">
         <span class="analysis-spinner"></span>
-        <strong>Translating this line</strong>
+        <strong>Preparing line coaching</strong>
         ${line ? `<p class="loading-source">${escapeHTML(line.text)}</p>` : ''}
-        <span class="loading-detail">Meaning and usage are on the way</span>
+        <span class="loading-detail">Word meanings and usage are on the way</span>
         <span class="loading-elapsed"></span>
       </div>`;
       updateAnalysisElapsed();
     } else {
-      elements.coachBody.innerHTML = state.analysis
+      elements.coachBody.innerHTML = state.analysis && !state.analysisError
         ? '<div class="coach-intro"><p>This line has no analysis yet.</p></div>'
         : analysisUnavailableHTML();
     }
@@ -1004,6 +1009,7 @@ async function loadTrack(track) {
   state.translations = new Map();
   state.translationRequestId = '';
   state.analysis = null;
+  state.analysisRequestId = '';
   state.isAnalyzing = false;
   state.analysisError = '';
   stopAnalysisTimer();
@@ -1014,7 +1020,7 @@ async function loadTrack(track) {
   state.activeIndex = -1;
   state.hoveredIndex = null;
   state.coachIndex = -1;
-  state.coachPinned = false;
+  setCoachPinned(false);
   state.chatError = '';
   elements.lyricsScroll.scrollTop = 0;
   renderTrack();
@@ -1070,8 +1076,26 @@ window.bol.onTranslationProgress(({ requestId, lines }) => {
   applyTranslationLines(lines || []);
 });
 
+window.bol.onAnalysisProgress(({ requestId, lines, completed, total }) => {
+  if (!requestId || requestId !== state.analysisRequestId || !state.isAnalyzing) return;
+  state.analysis = { lines, partial: true };
+  elements.languageDetectionStatus.textContent = `Coaching ${completed}/${total} lines`;
+  elements.analyzeButton.innerHTML = `<span>✦</span> Coaching ${completed}/${total} lines…`;
+  const selectedIndex = state.coachIndex >= 0 ? state.coachIndex : state.activeIndex;
+  const scrollTop = elements.lyricsScroll.scrollTop;
+  // Keep a conversation and its input intact while background coaching arrives.
+  if (state.coachMode === 'coach') {
+    renderLyrics();
+    elements.lyricsScroll.scrollTop = scrollTop;
+    selectCoachLine(selectedIndex, false);
+  }
+});
+
 async function analyzeCurrentSong(automatic = false) {
-  if (!state.lyrics?.lines?.length || state.analysis) return;
+  if (!state.lyrics?.lines?.length || state.isAnalyzing || (state.analysis && !state.analysis.partial)) return;
+  const loadToken = state.loadToken;
+  const requestId = crypto.randomUUID();
+  state.analysisRequestId = requestId;
   syncAnalyzeButtonVisibility();
   elements.analyzeButton.disabled = true;
   state.isAnalyzing = true;
@@ -1079,38 +1103,41 @@ async function analyzeCurrentSong(automatic = false) {
   startAnalysisTimer();
   elements.languageDetectionStatus.hidden = false;
   elements.languageDetectionStatus.classList.remove('unavailable');
-  elements.languageDetectionStatus.textContent = 'Detecting languages…';
+  elements.languageDetectionStatus.textContent = 'Preparing coaching…';
   elements.languageDetectionStatus.title = '';
   elements.analyzeButton.innerHTML = '<span>✦</span> Reading the language…';
-  elements.translationStatus.hidden = false;
   if (state.coachMode === 'coach') elements.coachBody.innerHTML = `<div class="analysis-loading">
     <span class="analysis-spinner"></span>
-    <strong>Translating this song</strong>
-    <p>Checking each lyric for its English meaning, language, and whether people actually say it.</p>
-    <span class="loading-detail">Usually takes a few seconds</span>
+    <strong>Preparing line coaching</strong>
+    <p>Adding word meanings, pronunciation, and everyday usage.</p>
+    <span class="loading-detail">Lines appear as they become ready</span>
     <span class="loading-elapsed">0s elapsed</span>
   </div>`;
   try {
-    state.analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines });
+    const analysis = await window.bol.analyze({ track: state.track, lines: state.lyrics.lines, requestId,
+      priorityIndex: state.coachIndex >= 0 ? state.coachIndex : Math.max(0, state.activeIndex) });
+    if (loadToken !== state.loadToken || requestId !== state.analysisRequestId) return;
+    state.analysis = analysis;
     state.isAnalyzing = false;
     state.analysisError = '';
     stopAnalysisTimer();
     renderTrackLanguages();
+    const scrollTop = elements.lyricsScroll.scrollTop;
     renderLyrics();
+    elements.lyricsScroll.scrollTop = scrollTop;
     renderCurrentLineDock();
-    selectCoachLine(Math.max(0, state.activeIndex), false);
+    selectCoachLine(state.coachIndex >= 0 ? state.coachIndex : Math.max(0, state.activeIndex), false);
     elements.analyzeButton.hidden = true;
-    elements.translationStatus.hidden = true;
     elements.languageDetectionStatus.title = '';
   } catch (error) {
+    if (loadToken !== state.loadToken || requestId !== state.analysisRequestId) return;
     state.isAnalyzing = false;
     stopAnalysisTimer();
     elements.languageDetectionStatus.hidden = false;
     elements.languageDetectionStatus.classList.add('unavailable');
-    elements.languageDetectionStatus.textContent = 'Language not analyzed';
+    elements.languageDetectionStatus.textContent = state.analysis?.lines?.length ? 'Coaching incomplete' : 'Language not analyzed';
     elements.analyzeButton.disabled = false;
     elements.analyzeButton.innerHTML = '<span>✦</span> Analyze this song';
-    elements.translationStatus.hidden = true;
     const message = String(error.message || 'Analysis failed. Please try again.')
       .replace(/^Error invoking remote method '[^']+':\s*(?:\w*Error:\s*)?/, '');
     state.analysisError = message;
@@ -1197,7 +1224,7 @@ async function controlPlayback(action) {
 async function seekToLine(line) {
   if (state.mode !== 'spotify' || !state.lyrics.synced || !Number.isFinite(line?.timeMs)) return;
   const positionMs = Math.max(0, line.timeMs);
-  state.coachPinned = false;
+  setCoachPinned(false);
   state.hoveredIndex = null;
   state.positionBase = positionMs;
   state.positionObservedAt = Date.now();
@@ -1311,7 +1338,7 @@ elements.previousButton.addEventListener('click', () => controlPlayback('previou
 elements.playPauseButton.addEventListener('click', () => controlPlayback('playPause'));
 elements.nextButton.addEventListener('click', () => controlPlayback('next'));
 elements.repeatButton.addEventListener('click', cycleRepeatMode);
-elements.currentLineDock.addEventListener('click', scrollToActive);
+elements.currentLineDock.addEventListener('click', resumeLiveLine);
 elements.lyricsScroll.addEventListener('mouseleave', scheduleCoachHoverExit);
 elements.lyricsScroll.addEventListener('scroll', () => {
   if (state.programmaticScroll) return;
@@ -1362,11 +1389,11 @@ document.addEventListener('visibilitychange', () => {
   scheduleTick(0);
 });
 elements.coachPanel.addEventListener('pointerdown', () => {
-  state.coachPinned = true;
+  setCoachPinned(true);
   cancelCoachHoverExit();
 });
 elements.coachPanel.addEventListener('focusin', () => {
-  state.coachPinned = true;
+  setCoachPinned(true);
   cancelCoachHoverExit();
 });
 document.addEventListener('pointermove', (event) => {

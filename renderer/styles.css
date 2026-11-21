@@ -137,6 +137,7 @@ button { color: inherit; }
 .secondary-button, .primary-button { padding: 10px 16px; border: 0; border-radius: 10px; background: var(--lime); color: #181814; font-weight: 600; font-size: 12px; cursor: pointer; }
 .coach-panel { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0,1fr) auto auto; padding: 16px 23px 9px; background: rgba(17,17,16,.55); border-left: 1px solid var(--line); }
 .coach-heading { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.coach-panel.pinned { box-shadow: inset 0 0 0 3px var(--line); border-radius: 0 19px 19px 0; }
 .coach-heading .eyebrow { font-size: 8px; }
 .coach-heading h2 { margin: 4px 0 0; font: 600 18px/1.18 Georgia, serif; }
 .coach-heading h2 br { display: none; }

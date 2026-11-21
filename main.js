@@ -11,6 +11,13 @@ const { normalizeStudyState, ratingIntervals } = require('./src/spaced-repetitio
 let mainWindow;
 let flashcardWriteQueue = Promise.resolve();
 const translationControllers = new WeakMap();
+const analysisControllers = new WeakMap();
+
+function recordAnalysisTiming(requestId, stage, startedAt, counts = {}) {
+  const entry = { at: new Date().toISOString(), requestId, stage, elapsedMs: Date.now() - startedAt, ...counts };
+  // Local diagnostics contain only timing and counts, never lyrics, prompts, or credentials.
+  fs.appendFile(path.join(app.getPath('userData'), 'analysis-timings.jsonl'), `${JSON.stringify(entry)}\n`).catch(() => {});
+}
 
 // Keep the concise macOS menu-bar name while the packaged .app uses the
 // descriptive productName configured for Finder.
@@ -149,7 +156,8 @@ app.whenReady().then(() => {
   ipcMain.handle('spotify:control', (_event, action) => controlSpotify(action));
   ipcMain.handle('spotify:seek', (_event, positionMs, shouldPlay) => seekSpotify(positionMs, shouldPlay));
   ipcMain.handle('spotify:play-track', (_event, spotifyUrl, positionMs) => playSpotifyTrack(spotifyUrl, positionMs));
-  ipcMain.handle('lyrics:fetch', async (_event, track) => {
+  ipcMain.handle('lyrics:fetch', async (event, track) => {
+    analysisControllers.get(event.sender)?.abort();
     const settings = await loadSettings();
     return fetchLyrics(track, settings.targetLanguage);
   });
@@ -177,18 +185,37 @@ app.whenReady().then(() => {
       if (translationControllers.get(event.sender) === controller) translationControllers.delete(event.sender);
     }
   });
-  ipcMain.handle('coach:analyze', async (_event, payload) => {
+  ipcMain.handle('coach:analyze', async (event, payload) => {
+    analysisControllers.get(event.sender)?.abort();
+    const { requestId, priorityIndex, ...analysisPayload } = payload;
     const settings = await loadSettings();
-    const key = analysisCacheKey({ ...payload, model: settings.model, targetLanguage: settings.targetLanguage });
+    const key = analysisCacheKey({ ...analysisPayload, model: settings.model, targetLanguage: settings.targetLanguage });
     const cached = await readAnalysisCache(analysisCachePath(), key);
     if (cached) return reconcileTargetLanguageFits(cached, settings.targetLanguage);
     const apiKey = apiKeyFor(settings, 'Add an OpenAI API key in Settings to translate and explain this song.');
-    const analysis = reconcileTargetLanguageFits(
-      await createCoach({ ...settings, apiKey }).analyze(payload),
-      settings.targetLanguage,
-    );
-    await writeAnalysisCache(analysisCachePath(), key, analysis);
-    return analysis;
+    const controller = new AbortController();
+    analysisControllers.set(event.sender, controller);
+    const startedAt = Date.now();
+    recordAnalysisTiming(requestId, 'started', startedAt);
+    try {
+      const analysis = reconcileTargetLanguageFits(
+        await createCoach({ ...settings, apiKey }).analyze({ ...analysisPayload, priorityIndex }, (progress) => {
+          recordAnalysisTiming(requestId, 'progress', startedAt, { completed: progress.completed, total: progress.total });
+          if (!event.sender.isDestroyed()) event.sender.send('coach:analysis-progress', {
+            requestId, ...progress, lines: reconcileTargetLanguageFits({ lines: progress.lines }, settings.targetLanguage).lines,
+          });
+        }, controller.signal),
+        settings.targetLanguage,
+      );
+      await writeAnalysisCache(analysisCachePath(), key, analysis);
+      recordAnalysisTiming(requestId, 'complete', startedAt);
+      return analysis;
+    } catch (error) {
+      recordAnalysisTiming(requestId, controller.signal.aborted ? 'canceled' : 'failed', startedAt);
+      throw error;
+    } finally {
+      if (analysisControllers.get(event.sender) === controller) analysisControllers.delete(event.sender);
+    }
   });
   ipcMain.handle('coach:chat', async (_event, payload) => {
     const settings = await loadSettings();
