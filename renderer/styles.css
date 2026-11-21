@@ -41,7 +41,7 @@ button { color: inherit; }
 .icon-button { display: grid; place-items: center; width: 34px; height: 34px; background: transparent; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; }
 .icon-button:hover { background: rgba(255,255,255,.06); }
 .icon-button svg { width: 16px; stroke: #c5c4bd; fill: none; stroke-width: 1.5; }
-.now-playing { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 22px 18px 20px; }
+.now-playing { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 12px 18px 30px; }
 .cover-shell { position: relative; width: 92px; height: 92px; }
 .cover-art { width: 92px; height: 92px; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 14px 34px rgba(0,0,0,.35); overflow: hidden; }
 .fallback-cover { display: grid; place-items: center; color: #211917; background: radial-gradient(circle at 70% 20%, #fff5c4 0 11%, transparent 12%), linear-gradient(140deg, #ffb379, #ff766e 60%, #6746aa); font: 600 34px Georgia, serif; }
