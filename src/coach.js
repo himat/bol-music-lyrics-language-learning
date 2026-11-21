@@ -140,7 +140,7 @@ const lyricChatSchema = {
         additionalProperties: false,
         required: ['label', 'nativeScript', 'romanization', 'translation'],
         properties: {
-          label: { type: 'string' },
+          label: { type: 'string', description: 'Short readable heading such as Selected lyric, Earlier lyric, Later lyric, Example, or a speaker name. Never expose internal field names, array positions, or numbered references such as nearby42 or focus40.' },
           nativeScript: { type: 'string' },
           romanization: { type: 'string' },
           translation: { type: 'string' },
@@ -494,14 +494,19 @@ function createCoach({ apiKey, model, targetLanguage }) {
       return generated;
     },
     async answerLyricQuestion({ track, focus, nearby, history, question }) {
+      const { index: focusIndex, ...focusedLyric } = focus;
+      const surroundingLyrics = (nearby || []).map(({ index, ...line }) => ({
+        ...line,
+        position: index < focusIndex ? 'Before the selected lyric' : 'After the selected lyric',
+      }));
       return requestStructured({
         apiKey,
         model,
         instructions: `You are a patient language tutor helping an adult learn ${targetLanguage || 'Hindi'} for natural daily conversation. Answer the learner's exact question about the supplied lyric. Use the focused line, its native script, English translation, romanization, per-word meanings, usage analysis, and nearby lines as context. Clearly distinguish Hindi, Punjabi, Urdu, English, and other languages rather than treating similar vocabulary as Hindi. Explain grammar, vocabulary, pronunciation, idiom, cultural context, and whether wording is natural in daily speech when relevant. The answer field must contain concise English-only explanation: never put a Hindi word, transliteration, example, corrected phrase, or dialogue turn in answer. Put every target-language item in languageBlocks. Every language block must be ordered and populated as: nativeScript first (Devanagari for Hindi, even when the source is Latin transliteration), romanization second, and concise natural English translation third. For a conversation, return one block per speaker turn and put the speaker name such as A or B in label. For vocabulary or grammar explanations, return one block for every word or phrase you mention. Use an empty languageBlocks array only when the answer genuinely contains no target-language item. Be direct and concise. Do not use Markdown headings, bold markers, or tables in answer. Do not invent facts or quote lyrics beyond the supplied context; say when the supplied context is insufficient.`,
         input: {
           track: { title: track?.title || '', artist: track?.artist || '' },
-          focus,
-          nearby,
+          focus: focusedLyric,
+          nearby: surroundingLyrics,
           conversation: trimChatHistory(history),
           question: String(question || '').trim(),
         },

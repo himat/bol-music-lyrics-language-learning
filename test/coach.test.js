@@ -19,6 +19,25 @@ test('supports the SDK output_text convenience property', () => {
   assert.equal(extractOutputText({ output_text: 'hello' }), 'hello');
 });
 
+test('lyric chat sends surrounding lyrics without internal line IDs', async () => {
+  const originalFetch = global.fetch;
+  let sent;
+  global.fetch = async (_url, options) => {
+    sent = JSON.parse(JSON.parse(options.body).input);
+    return { ok: true, json: async () => ({ output_text: JSON.stringify({ answer: 'Explanation', languageBlocks: [] }) }) };
+  };
+  try {
+    const nearby = [36, 37, 38, 39, 41, 42, 43, 44].map((index) => ({ index, text: `line ${index}`, translation: 'meaning' }));
+    await createCoach({ apiKey: 'test' }).answerLyricQuestion({ track: {}, focus: { index: 40, text: 'selected' }, nearby, history: [], question: 'What does this mean?' });
+    assert.equal(sent.nearby.length, 8);
+    assert.equal(sent.focus.index, undefined);
+    assert.ok(sent.nearby.every((line) => !Object.hasOwn(line, 'index')));
+    assert.equal(sent.nearby[0].position, 'Before the selected lyric');
+    assert.equal(sent.nearby[7].position, 'After the selected lyric');
+    assert.equal(sent.nearby[7].translation, 'meaning');
+  } finally { global.fetch = originalFetch; }
+});
+
 test('publishes the current line and repeated occurrences before slower batches finish', async () => {
   const originalFetch = global.fetch;
   let releaseSlow;

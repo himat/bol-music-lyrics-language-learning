@@ -779,9 +779,16 @@ function chatMessageHTML(content) {
   }).join('');
 }
 
+function readableChatLabel(label) {
+  const value = String(label || '').trim();
+  if (/^nearby[\s_:#.\[\]-]*\d*$/i.test(value)) return 'Surrounding lyric';
+  if (/^focus(?:ed)?[\s_:#.\[\]-]*\d*$/i.test(value)) return 'Selected lyric';
+  return value;
+}
+
 function chatLanguageBlocksHTML(blocks = []) {
   return blocks.map((block) => `<div class="chat-language-block">
-    ${block.label ? `<small>${escapeHTML(block.label)}</small>` : ''}
+    ${block.label ? `<small>${escapeHTML(readableChatLabel(block.label))}</small>` : ''}
     <strong>${escapeHTML(block.nativeScript)}</strong>
     <span class="chat-block-romanization">${escapeHTML(lowercaseRomanization(block.romanization))}</span>
     <span class="chat-block-translation">${escapeHTML(block.translation)}</span>
@@ -789,7 +796,7 @@ function chatLanguageBlocksHTML(blocks = []) {
 }
 
 function chatHistoryContent(message) {
-  const blocks = (message.languageBlocks || []).map((block) => [block.label, block.nativeScript, block.romanization, block.translation].filter(Boolean).join(' | '));
+  const blocks = (message.languageBlocks || []).map((block) => [readableChatLabel(block.label), block.nativeScript, block.romanization, block.translation].filter(Boolean).join(' | '));
   return [message.content, ...blocks].filter(Boolean).join('\n');
 }
 
@@ -798,7 +805,7 @@ function chatContext(index) {
   if (!line) return null;
   const analysis = analysisFor(index);
   const nearby = state.lyrics.lines
-    .filter((item) => Math.abs(item.index - index) <= 2 && item.index !== index)
+    .filter((item) => Math.abs(item.index - index) <= 4 && item.index !== index)
     .map((item) => {
       const itemAnalysis = analysisFor(item.index);
       return {
