@@ -738,6 +738,7 @@ function scrollToActive() {
 function setCoachPinned(pinned) {
   state.coachPinned = pinned;
   elements.coachPanel.classList.toggle('pinned', pinned);
+  updateRows();
 }
 
 function resumeLiveLine() {
@@ -910,6 +911,7 @@ function updateRows() {
     const index = Number(row.dataset.index);
     row.classList.toggle('active', index === state.activeIndex);
     row.classList.toggle('hovered', index === state.hoveredIndex);
+    row.classList.toggle('pinned', state.coachPinned && index === state.coachIndex);
   }
 }
 
