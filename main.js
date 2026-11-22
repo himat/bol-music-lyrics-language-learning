@@ -20,7 +20,7 @@ function recordAnalysisTiming(requestId, stage, startedAt, counts = {}) {
 }
 
 // Keep the concise macOS menu-bar name while the packaged .app uses the
-// descriptive productName configured for Finder.
+// descriptive CFBundleDisplayName configured for Finder.
 app.setName('Bol');
 
 function installApplicationMenu() {

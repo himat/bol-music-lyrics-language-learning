@@ -1,6 +1,6 @@
 {
   "name": "bol-language-player",
-  "version": "0.5.20",
+  "version": "0.5.21",
   "description": "Learn everyday language from the music playing in Spotify.",
   "main": "main.js",
   "type": "commonjs",
@@ -33,7 +33,7 @@
       "hardenedRuntime": false,
       "extendInfo": {
         "CFBundleName": "Bol",
-        "CFBundleDisplayName": "Bol - musical language learning",
+        "CFBundleDisplayName": "Bol - Language Learning",
         "NSAppleEventsUsageDescription": "Bol reads the current song and playback position from Spotify to synchronize lyrics.",
         "NSMicrophoneUsageDescription": "Bol may use audio recognition as an optional fallback when playback metadata is unavailable."
       }

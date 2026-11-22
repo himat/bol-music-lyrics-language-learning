@@ -14,7 +14,7 @@ Bol is a macOS desktop app for learning natural, everyday language from songs pl
 
 ## Download the Mac app
 
-Download `Bol - musical language learning.app.zip` from [GitHub Releases](https://github.com/himat/bol-music-lyrics-language-learning/releases/latest), unzip it, and drag **Bol - musical language learning** into Applications.
+Download the app ZIP from [GitHub Releases](https://github.com/himat/bol-music-lyrics-language-learning/releases/latest), unzip it, and drag **Bol - Language Learning** into Applications.
 
 The current personal build is not Apple-notarized. On first launch, macOS may require right-clicking the app in Applications and choosing **Open**.
 
