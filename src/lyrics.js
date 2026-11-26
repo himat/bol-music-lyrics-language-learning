@@ -16,7 +16,7 @@ async function request(url) {
 }
 
 function normalize(record) {
-  const timed = parseLRC(record.syncedLyrics || '');
+  const timed = stripEmbeddedTranslations(parseLRC(record.syncedLyrics || ''));
   const lines = timed.length
     ? timed
     : String(record.plainLyrics || '').split(/\r?\n/).filter(Boolean).map((text, index) => ({ index, timeMs: null, text }));
@@ -28,6 +28,33 @@ function normalize(record) {
     synced: timed.length > 0,
     lines,
   };
+}
+
+// Some community LRCs place a parenthesized English translation at the same
+// timestamp as each original. Require a repeated bilingual pattern rather than
+// dropping parentheses or simultaneous vocals in ordinary lyrics.
+function stripEmbeddedTranslations(lines) {
+  const englishWords = new Set('i me my mine you your yours we us our they them their he him his she her it its the a an is are was were be been am have has had do does did will would can could should to of in on for with from into and but since when where who what how not no everything together'.split(' '));
+  const englishScore = (text) => (text.toLowerCase().match(/[a-z]+/g) || []).filter((word) => englishWords.has(word)).length;
+  const groups = new Map();
+  for (const line of lines) {
+    if (!groups.has(line.timeMs)) groups.set(line.timeMs, []);
+    groups.get(line.timeMs).push(line);
+  }
+  const translations = new Set();
+  let englishPairs = 0;
+  for (const group of groups.values()) {
+    if (group.length !== 2) continue;
+    const [original, translation] = group;
+    if (!/^\(.+\)$/.test(translation.text) || /^\(/.test(original.text)) continue;
+    translations.add(translation);
+    const translatedScore = englishScore(translation.text);
+    if (translatedScore >= 2 && translatedScore > englishScore(original.text)) englishPairs++;
+  }
+  // Once the track-wide pattern is established, also omit accompanying notes
+  // such as "(Classical music notes / Sargam)" in the same translation slot.
+  if (englishPairs < 3 || englishPairs < groups.size * 0.6) return lines;
+  return lines.filter((line) => !translations.has(line)).map((line, index) => ({ ...line, index }));
 }
 
 async function fetchLyrics(track, targetLanguage = 'Hindi') {
@@ -78,7 +105,8 @@ function timedCoverageWordCount(timed) {
 }
 
 function lyricsMetrics(record, targetLanguage) {
-  const timed = parseLRC(record.syncedLyrics || '');
+  const rawTimed = parseLRC(record.syncedLyrics || '');
+  const timed = stripEmbeddedTranslations(rawTimed);
   const text = timed.length
     ? timed.map((line) => line.text).join(' ')
     : String(record.plainLyrics || '');
@@ -99,6 +127,7 @@ function lyricsMetrics(record, targetLanguage) {
     nativeScriptRatio,
     southAsianScriptRatio,
     stackedLineRatio: timed.length ? (timed.length - uniqueTimedCues) / timed.length : 0,
+    embeddedTranslationRatio: rawTimed.length ? (rawTimed.length - timed.length) / rawTimed.length : 0,
   };
 }
 
@@ -120,6 +149,7 @@ function rankCompleteLyrics(records, exact, distance, targetLanguage) {
     return right.nativeScriptRatio - left.nativeScriptRatio
       || right.southAsianScriptRatio - left.southAsianScriptRatio
       || left.stackedLineRatio - right.stackedLineRatio
+      || left.embeddedTranslationRatio - right.embeddedTranslationRatio
       || right.coverageWordCount - left.coverageWordCount
       || right.endTimeMs - left.endTimeMs
       || Number(b === exact) - Number(a === exact)

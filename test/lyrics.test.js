@@ -1,6 +1,49 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { chooseBestLyrics } = require('../src/lyrics');
+const { chooseBestLyrics, normalize, fetchLyrics } = require('../src/lyrics');
+
+// LRCLIB record 36074487, Tum Jo Aaye (Reprise): each original is followed
+// by its English meaning at the identical timestamp. Keep this offline.
+const repriseBilingual = {
+  id: 36074487, trackName: 'Tum Jo Aaye (Reprise)', duration: 286,
+  syncedLyrics: [
+    '[00:11.65] Paaya, maine paaya tumhein, Rabb ne milaya tumhein',
+    '[00:11.65] (I found, I found you, God brought us together)',
+    '[00:14.48] Honthon pe sajaya tumhein, naghme sa gaaya tumhein',
+    '[00:14.48] (I adorned you on my lips, I sang you like a melody)',
+    '[00:17.33] Paaya, maine paaya tumhein, sabse chhupaya tumhein',
+    '[00:17.33] (I found, I found you, I hid you from everyone)',
+    '[02:40.02] Pa ma ga ma pa ga ga ga ma ga ma ga ga sa',
+    '[02:40.02] (Classical music notes / Sargam)',
+  ].join('\n'),
+};
+
+test('Tum Jo Aaye Reprise removes embedded translation rows even with no clean alternative', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url) => url.includes('/get?')
+    ? { ok: false, status: 404 }
+    : { ok: true, json: async () => [repriseBilingual] });
+  const result = await fetchLyrics({ title: 'Tum Jo Aaye (Reprise)', artist: 'Pritam', durationMs: 267000 });
+  assert.equal(result.synced, true);
+  assert.deepEqual(result.lines.map(({ index, timeMs }) => ({ index, timeMs })), [
+    { index: 0, timeMs: 11650 }, { index: 1, timeMs: 14480 }, { index: 2, timeMs: 17330 }, { index: 3, timeMs: 160020 },
+  ]);
+  assert.ok(result.lines.every((line) => !line.text.startsWith('(')));
+  assert.equal(result.lines[0].text, 'Paaya, maine paaya tumhein, Rabb ne milaya tumhein');
+});
+
+test('prefers a clean Reprise record without treating translations as extra coverage', () => {
+  const clean = { ...repriseBilingual, id: 2, syncedLyrics: repriseBilingual.syncedLyrics.split('\n').filter((_, index) => index % 2 === 0).join('\n') };
+  assert.equal(chooseBestLyrics(repriseBilingual, [clean], 286000).id, 2);
+});
+
+test('keeps genuine English lyrics, isolated backing vocals, and repeated original cues', () => {
+  const english = '[00:01.00] I found you\n[00:01.00] (you found me)\n[00:02.00] We are together';
+  assert.equal(normalize({ syncedLyrics: english }).lines.length, 3);
+  const original = '[00:01.00] paaya tumhein\n[00:01.00] paaya tumhein\n[00:02.00] (oh)';
+  assert.equal(normalize({ syncedLyrics: original }).lines.length, 3);
+  const standaloneEnglish = `${repriseBilingual.syncedLyrics}\n[00:20.00] I will always love you`;
+  assert.ok(normalize({ syncedLyrics: standaloneEnglish }).lines.some((line) => line.text === 'I will always love you'));
+});
 
 test('prefers duration-matched synchronized lyrics over an exact plain record', () => {
   const exact = { id: 1, duration: 277, plainLyrics: 'plain', syncedLyrics: null };
