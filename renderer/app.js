@@ -4,6 +4,7 @@ const elements = Object.fromEntries([
   'currentLineDock','translationStatus','analyzeButton','toast','settingsDialog','settingsForm','settingsButton','targetLanguageInput','apiKeyInput','apiKeyStatus',
   'modelInput','apiKeyHelp','homeButton','previousButton','playPauseButton','nextButton','repeatButton',
   'flashcardsButton','flashcardCount','flashcardsDialog','flashcardsCloseButton','browseFlashcardsTab','studyFlashcardsTab',
+  'historyButton','historyPopover','historyList',
   'flashcardsBrowseView','flashcardsStudyView','flashcardsList','flashcardDetail','vocabularyAddForm','vocabularyTextInput','vocabularyLanguageInput','vocabularyAddButton',
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -19,6 +20,7 @@ const state = {
   flashcardGenerationKeys: new Set(), flashcardGlossAttemptedKeys: new Set(), studyRatingInFlight: false,
   coachMode: 'coach', coachIndex: -1, coachPinned: false,
   chats: {}, chatSending: false, chatError: '',
+  recentTracks: [], historyPlaying: false,
 };
 let spotifyPollTimer = null;
 let tickTimer = null;
@@ -26,6 +28,86 @@ let coachHoverExitTimer = null;
 
 function trackKey(track) { return `${track.title}::${track.artist}::${track.durationMs}`; }
 const chatStorageKey = 'bol:lyric-chats:v1';
+const historyStorageKey = 'bol:recent-tracks:v1';
+
+function loadRecentTracks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(historyStorageKey) || '[]');
+    if (!Array.isArray(saved)) return [];
+    const seen = new Set();
+    return saved.filter((track) => {
+      if (!track || typeof track.title !== 'string' || !track.title.trim()
+        || typeof track.artist !== 'string' || typeof track.spotifyUrl !== 'string'
+        || !/^spotify:track:[a-zA-Z0-9]+$/.test(track.spotifyUrl) || seen.has(track.spotifyUrl)) return false;
+      seen.add(track.spotifyUrl);
+      return true;
+    }).slice(0, 30);
+  } catch { return []; }
+}
+
+function rememberTrack(track) {
+  if (!track.title || !/^spotify:track:[a-zA-Z0-9]+$/.test(track.spotifyUrl || '')) return;
+  const { title, artist, album, spotifyUrl, artworkUrl } = track;
+  state.recentTracks = [{ title, artist, album, spotifyUrl, artworkUrl },
+    ...state.recentTracks.filter((item) => item.spotifyUrl !== spotifyUrl)].slice(0, 30);
+  try { localStorage.setItem(historyStorageKey, JSON.stringify(state.recentTracks)); } catch { /* Keep this session's history if storage is full. */ }
+  renderRecentTracks();
+}
+
+function renderRecentTracks() {
+  elements.historyList.replaceChildren();
+  if (!state.recentTracks.length) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = 'Songs you play while Bol is open will appear here.';
+    elements.historyList.append(empty);
+    return;
+  }
+  for (const track of state.recentTracks) {
+    const button = document.createElement('button');
+    button.className = 'history-song';
+    button.disabled = state.historyPlaying;
+    button.title = `Play ${track.title} · ${track.artist}`;
+    const hasArtwork = typeof track.artworkUrl === 'string' && track.artworkUrl.startsWith('https://');
+    const artwork = document.createElement(hasArtwork ? 'img' : 'span');
+    artwork.className = 'history-art';
+    if (hasArtwork) { artwork.alt = ''; artwork.loading = 'lazy'; artwork.src = track.artworkUrl; }
+    const copy = document.createElement('span');
+    copy.className = 'history-copy';
+    const title = document.createElement('strong');
+    title.textContent = track.title;
+    const artist = document.createElement('span');
+    artist.textContent = track.artist;
+    copy.append(title, artist);
+    button.append(artwork, copy);
+    if (track.spotifyUrl === state.track.spotifyUrl) {
+      const current = document.createElement('span');
+      current.className = 'history-current';
+      current.textContent = 'Current';
+      button.append(current);
+      button.setAttribute('aria-current', 'true');
+    }
+    button.addEventListener('click', async () => {
+      if (state.historyPlaying) return;
+      state.historyPlaying = true;
+      renderRecentTracks();
+      try {
+        await window.bol.spotifyPlayTrack(track.spotifyUrl, 0);
+        elements.historyPopover.hidePopover();
+        elements.historyButton.focus();
+        scheduleSpotifyPoll(0);
+      } catch (error) { showToast(error.message || 'Could not play this song in Spotify.'); }
+      finally { state.historyPlaying = false; renderRecentTracks(); }
+    });
+    elements.historyList.append(button);
+  }
+}
+
+function positionHistoryPopover() {
+  const button = elements.historyButton.getBoundingClientRect();
+  elements.historyPopover.style.top = `${button.bottom + 8}px`;
+  elements.historyPopover.style.left = `${Math.max(16, Math.min(button.right - elements.historyPopover.offsetWidth, window.innerWidth - elements.historyPopover.offsetWidth - 16))}px`;
+}
 
 function loadChats() {
   try { return JSON.parse(localStorage.getItem(chatStorageKey) || '{}'); } catch { return {}; }
@@ -1183,6 +1265,7 @@ async function pollSpotify() {
     if (key !== state.lastRealTrackKey) {
       state.lastRealTrackKey = key;
       loadTrack(spotify);
+      rememberTrack(spotify);
     }
   } catch (error) {
     setSource('Spotify connection unavailable', false);
@@ -1329,6 +1412,17 @@ async function openSettings() {
 }
 
 elements.settingsButton.addEventListener('click', openSettings);
+elements.historyPopover.addEventListener('toggle', (event) => {
+  const open = event.newState === 'open';
+  elements.historyButton.setAttribute('aria-expanded', String(open));
+  if (open) {
+    renderRecentTracks();
+    positionHistoryPopover();
+  }
+});
+window.addEventListener('resize', () => {
+  if (elements.historyPopover.matches(':popover-open')) positionHistoryPopover();
+});
 elements.flashcardsButton.addEventListener('click', openFlashcards);
 elements.flashcardsCloseButton.addEventListener('click', () => elements.flashcardsDialog.close());
 elements.browseFlashcardsTab.addEventListener('click', () => setFlashcardMode('browse'));
@@ -1358,6 +1452,12 @@ elements.lyricsScroll.addEventListener('scroll', () => {
   state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
 }, { passive: true });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && elements.historyPopover.matches(':popover-open')) {
+    event.preventDefault();
+    elements.historyPopover.hidePopover();
+    elements.historyButton.focus();
+    return;
+  }
   if (event.key === 'Escape' && !elements.settingsDialog.open && !elements.flashcardsDialog.open) {
     event.preventDefault();
     resumeLiveLine();
@@ -1429,6 +1529,8 @@ elements.settingsForm.addEventListener('submit', async (event) => {
 
 async function init() {
   state.chats = loadChats();
+  state.recentTracks = loadRecentTracks();
+  renderRecentTracks();
   state.settings = await window.bol.loadSettings();
   state.flashcards = await window.bol.listFlashcards();
   updateFlashcardCount();

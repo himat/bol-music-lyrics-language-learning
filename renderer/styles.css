@@ -37,6 +37,22 @@ button { color: inherit; }
 .cards-button:hover { color: var(--ink); background: rgba(255,255,255,.06); }
 .cards-button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .cards-button strong { display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; color: #171713; background: var(--lime); border-radius: 99px; font-size: 8px; }
+.cards-button[aria-expanded="true"] { color: var(--ink); border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.06); }
+.cards-button .history-chevron { width: 11px; height: 11px; }
+.history-popover { position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 32px)); padding: 6px; color: var(--ink); background: #20201e; border: 1px solid rgba(255,255,255,.16); border-radius: 13px; box-shadow: 0 12px 40px #0009; -webkit-app-region: no-drag; }
+.history-heading { padding: 10px 10px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); }
+.history-heading span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.history-list { max-height: min(420px, calc(100vh - 150px)); overflow-y: auto; padding-top: 4px; }
+.history-song { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px; text-align: left; border: 0; border-radius: 8px; background: transparent; cursor: pointer; }
+.history-song:hover, .history-song:focus-visible { background: rgba(255,255,255,.07); outline: 1px solid rgba(217,255,115,.35); outline-offset: -1px; }
+.history-song:disabled { opacity: .5; cursor: wait; }
+.history-art { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 6px; background: #34342e; object-fit: cover; }
+.history-copy { flex: 1; min-width: 0; }
+.history-copy strong, .history-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-copy strong { font-size: 12px; font-weight: 500; }
+.history-copy span { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.history-current { color: var(--lime); font-size: 10px; }
+.history-empty { margin: 0; padding: 15px 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .language-label { color: var(--muted); font-size: 12px; }
 .icon-button { display: grid; place-items: center; width: 34px; height: 34px; background: transparent; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; }
 .icon-button:hover { background: rgba(255,255,255,.06); }

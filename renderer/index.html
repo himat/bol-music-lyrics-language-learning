@@ -20,6 +20,15 @@
           <span id="sourceLabel">Finding Spotify…</span>
         </div>
         <div class="top-actions">
+          <button class="cards-button" id="historyButton" popovertarget="historyPopover" aria-expanded="false" aria-controls="historyPopover">
+            <svg viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/></svg>
+            <span>Recently played</span>
+            <svg class="history-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+          </button>
+          <section class="history-popover" id="historyPopover" popover aria-label="Recently played songs">
+            <div class="history-heading">Recently played <span>Click a song to play in Spotify</span></div>
+            <div id="historyList" class="history-list"></div>
+          </section>
           <button class="cards-button" id="flashcardsButton" aria-label="Open saved vocabulary">
             <svg viewBox="0 0 24 24"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h7M8 12h7"/></svg>
             <span>Vocab</span><strong id="flashcardCount">0</strong>
