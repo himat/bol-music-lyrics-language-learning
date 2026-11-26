@@ -106,15 +106,15 @@ button { color: inherit; }
 .spotify-button:hover { background: rgba(255,255,255,.05); }
 .spotify-button svg { width: 16px; fill: #1ed760; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 335px; gap: 0; margin-top: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.24); }
-.lyrics-panel { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: 42px auto minmax(0, 1fr); overflow: hidden; }
+.lyrics-panel { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; }
 .column-headings { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 0 28px; align-items: center; color: #74736e; font-size: 9px; letter-spacing: .14em; border-bottom: 1px solid var(--line); }
 .english-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .english-heading small { display: inline-flex; align-items: center; gap: 5px; color: var(--lime); font-size: 8px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .english-heading small::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 8px rgba(217,255,115,.6); animation: status-pulse .9s ease-in-out infinite alternate; }
 @keyframes status-pulse { to { opacity: .35; transform: scale(.7); } }
-.current-line-dock { position: relative; z-index: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 100%; padding: 13px 28px 13px 34px; color: var(--ink); text-align: left; background: rgba(217,255,115,.075); border: 0; border-bottom: 1px solid rgba(217,255,115,.16); cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.16); }
+.current-line-dock { position: absolute; top: 42px; left: 0; z-index: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 100%; padding: 13px 28px 13px 34px; color: var(--ink); text-align: left; background: #292d1f; border: 0; border-bottom: 1px solid rgba(217,255,115,.16); cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.16); }
 .current-line-dock::before { content: ''; position: absolute; left: 17px; top: 14px; bottom: 14px; width: 2px; border-radius: 4px; background: var(--lime); box-shadow: 0 0 10px rgba(217,255,115,.45); }
-.current-line-dock:hover { background: rgba(217,255,115,.11); }
+.current-line-dock:hover { background: #343a25; }
 .current-line-dock .dock-original { display: flex; align-items: flex-start; gap: 7px; font-size: 14px; font-weight: 600; line-height: 1.35; }
 .current-line-dock .dock-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
 .current-line-dock .dock-translation { align-self: center; color: #d8d6ce; font: 600 14px/1.35 Georgia, serif; }

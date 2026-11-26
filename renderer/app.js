@@ -791,6 +791,18 @@ function scheduleCoachHoverExit() {
   }, 700);
 }
 
+function updateCurrentLineDockVisibility() {
+  const row = elements.lyricsScroll.querySelector(`[data-index="${state.activeIndex}"]`);
+  if (!row || state.programmaticScroll || elements.lyricsScroll.hidden) {
+    elements.currentLineDock.hidden = true;
+    return;
+  }
+  const viewport = elements.lyricsScroll.getBoundingClientRect();
+  const bounds = row.getBoundingClientRect();
+  const visible = bounds.bottom > viewport.top && bounds.top < viewport.bottom;
+  elements.currentLineDock.hidden = visible;
+}
+
 function renderCurrentLineDock() {
   const line = state.lyrics?.lines?.find((item) => item.index === state.activeIndex);
   if (!line) {
@@ -805,7 +817,7 @@ function renderCurrentLineDock() {
     ? escapeHTML(translationFor(line.index))
     : '<span class="translation-placeholder"></span>';
   elements.currentLineDock.innerHTML = `<span class="dock-original"><span class="dock-live">Live</span><span class="dock-copy"><span>${glossedWordsHTML(line.text, analysis)}</span>${languageTag}</span></span><span class="dock-translation">${translation}</span>`;
-  elements.currentLineDock.hidden = false;
+  updateCurrentLineDockVisibility();
 }
 
 function scrollToActive() {
@@ -813,8 +825,12 @@ function scrollToActive() {
   if (!row) return;
   state.userBrowsing = false;
   state.programmaticScroll = true;
+  updateCurrentLineDockVisibility();
   row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  setTimeout(() => { state.programmaticScroll = false; }, 650);
+  setTimeout(() => {
+    state.programmaticScroll = false;
+    updateCurrentLineDockVisibility();
+  }, 650);
 }
 
 function setCoachPinned(pinned) {
@@ -1368,13 +1384,11 @@ function tick() {
   if (next !== state.activeIndex) {
     state.activeIndex = next;
     updateRows();
-    renderCurrentLineDock();
     const row = elements.lyricsScroll.querySelector(`[data-index="${next}"]`);
     if (row && state.hoveredIndex === null && !state.userBrowsing) {
-      state.programmaticScroll = true;
-      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      setTimeout(() => { state.programmaticScroll = false; }, 650);
+      scrollToActive();
     }
+    renderCurrentLineDock();
     if (!state.coachPinned) selectCoachLine(next, false);
   }
 }
@@ -1446,11 +1460,13 @@ elements.repeatButton.addEventListener('click', cycleRepeatMode);
 elements.currentLineDock.addEventListener('click', resumeLiveLine);
 elements.lyricsScroll.addEventListener('mouseleave', scheduleCoachHoverExit);
 elements.lyricsScroll.addEventListener('scroll', () => {
+  updateCurrentLineDockVisibility();
   if (state.programmaticScroll) return;
   state.userBrowsing = true;
   clearTimeout(state.browseTimer);
   state.browseTimer = setTimeout(() => { state.userBrowsing = false; }, 12000);
 }, { passive: true });
+new ResizeObserver(updateCurrentLineDockVisibility).observe(elements.lyricsScroll);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && elements.historyPopover.matches(':popover-open')) {
     event.preventDefault();
