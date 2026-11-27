@@ -1145,7 +1145,7 @@ async function loadTrack(track) {
     if (token === state.loadToken) await analyzeCurrentSong(true);
   } catch (error) {
     if (token !== state.loadToken) return;
-    setEmpty('Lyrics weren’t found', error.message || 'Try another song.');
+    setEmpty('Lyrics weren’t found', String(error.message || 'Try another song.').replace(/^Error invoking remote method '[^']+': Error:\s*/, ''));
     elements.analyzeButton.hidden = true;
   }
 }

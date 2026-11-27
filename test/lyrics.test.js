@@ -2,6 +2,60 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { chooseBestLyrics, normalize, fetchLyrics } = require('../src/lyrics');
 
+const iAmInLoveTrack = { title: 'I Am In Love', artist: 'Pritam', album: 'Once Upon A Time In Mumbaai', durationMs: 285000 };
+
+test('finds I Am In Love by album when LRCLIB credits the singer instead of Pritam', async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(new URL(url));
+    if (url.includes('/get?')) return { ok: false, status: 404 };
+    return { ok: true, json: async () => url.includes('album_name=') ? [{
+      id: 23298734, trackName: 'I Am In Love', artistName: 'K.K.',
+      albumName: 'Once Upon A Time In Mumbaai', duration: 285, plainLyrics: 'lyric fixture',
+    }, {
+      id: 19433996, trackName: 'I Am In Love', artistName: 'Karthik',
+      albumName: 'Once Upon A Time In Mumbaai', duration: 287, syncedLyrics: '[00:29.00] English translation fixture',
+    }] : [] };
+  });
+  const lyrics = await fetchLyrics(iAmInLoveTrack);
+  assert.equal(lyrics.id, 23298734);
+  assert.equal(lyrics.artistName, 'K.K.');
+  assert.equal(lyrics.synced, false);
+  assert.equal(lyrics.lines.length, 1);
+  assert.equal(requests.length, 3);
+  assert.equal(requests[2].searchParams.get('album_name'), iAmInLoveTrack.album);
+  assert.equal(requests[2].searchParams.has('artist_name'), false);
+});
+
+test('album fallback rejects unrelated albums, versions, missing duration and empty lyrics', async (t) => {
+  const base = { trackName: iAmInLoveTrack.title, albumName: iAmInLoveTrack.album, duration: 285, plainLyrics: 'wrong recording' };
+  const mismatches = [
+    { ...base, albumName: 'Another Album' },
+    { ...base, trackName: 'I Am In Love (Female)' },
+    { ...base, duration: 302 },
+    { ...base, duration: null },
+    { ...base, plainLyrics: '' },
+  ];
+  t.mock.method(globalThis, 'fetch', async (url) => url.includes('/get?')
+    ? { ok: false, status: 404 }
+    : { ok: true, json: async () => url.includes('album_name=') ? mismatches : [] });
+  await assert.rejects(fetchLyrics(iAmInLoveTrack), /No lyrics found/);
+});
+
+test('does not relax artist matching when a match already exists or album identity is absent', async (t) => {
+  let count = 0;
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    count++;
+    return url.includes('/get?') ? { ok: false, status: 404 }
+      : { ok: true, json: async () => [{ id: 1, duration: 285, plainLyrics: 'existing match' }] };
+  });
+  assert.equal((await fetchLyrics(iAmInLoveTrack)).id, 1);
+  assert.equal(count, 2);
+  t.mock.method(globalThis, 'fetch', async (url) => url.includes('/get?')
+    ? { ok: false, status: 404 } : { ok: true, json: async () => [] });
+  await assert.rejects(fetchLyrics({ ...iAmInLoveTrack, album: '' }), /No lyrics found/);
+});
+
 // LRCLIB record 36074487, Tum Jo Aaye (Reprise): each original is followed
 // by its English meaning at the identical timestamp. Keep this offline.
 const repriseBilingual = {

@@ -75,7 +75,26 @@ async function fetchLyrics(track, targetLanguage = 'Hindi') {
     if (exact) return normalize(exact);
     throw error;
   }
-  const preferred = chooseBestLyrics(exact, results, track.durationMs, targetLanguage);
+  let preferred = chooseBestLyrics(exact, results, track.durationMs, targetLanguage);
+  // Soundtracks may credit the composer in Spotify and the singer in LRCLIB.
+  // Only relax the artist when album, title and recording length corroborate it.
+  if (!preferred && track.album && track.durationMs > 1000) {
+    const albumSearch = new URLSearchParams({ track_name: track.title, album_name: track.album });
+    const albumResults = await request(`${BASE_URL}/search?${albumSearch}`);
+    const identity = (value) => String(value || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const matches = (Array.isArray(albumResults) ? albumResults : []).filter((record) =>
+      identity(record.trackName) === identity(track.title)
+      && identity(record.albumName) === identity(track.album)
+      && Number(record.duration) > 0
+      && Math.abs(Number(record.duration) * 1000 - track.durationMs) <= 3000
+      && (String(record.syncedLyrics || '').trim() || String(record.plainLyrics || '').trim()));
+    // With the artist unverified, recording length takes priority over timing
+    // availability. Do not substitute a less precise synced version for an
+    // exact-length original; tolerate subsecond metadata rounding only.
+    const closestDistance = Math.min(...matches.map((record) => Math.abs(Number(record.duration) * 1000 - track.durationMs)));
+    const closest = matches.filter((record) => Math.abs(Number(record.duration) * 1000 - track.durationMs) <= closestDistance + 500);
+    preferred = chooseBestLyrics(null, closest, track.durationMs, targetLanguage);
+  }
   if (!preferred) {
     const error = new Error('No lyrics found for this track.');
     error.status = 404;
